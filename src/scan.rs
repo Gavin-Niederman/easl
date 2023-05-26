@@ -19,12 +19,16 @@ pub enum Token {
     Slash,
     Star,
     Bang,
+    LeftAngleBracket,
+    RightAngleBracket,
 
     If,
     Then,
     Else,
     Let,
     In,
+
+    Eof,
 }
 
 #[derive(Debug)]
@@ -45,8 +49,12 @@ pub fn scan(source: String) -> Result<Vec<Token>, ScannerError> {
     let mut tokens = Vec::new();
 
     for line in source.lines() {
-        for ch in line.chars() {
+        let chars_vec: Vec<char> = line.chars().collect();
+        let mut i = 0;
+        while i < chars_vec.len() {
+            let ch = chars_vec[i];
             match ch {
+                // Single character tokens
                 '#' => break,
                 '\\' => tokens.push(Token::Lambda),
                 '(' => tokens.push(Token::LeftParen),
@@ -56,10 +64,31 @@ pub fn scan(source: String) -> Result<Vec<Token>, ScannerError> {
                 '/' => tokens.push(Token::Slash),
                 '*' => tokens.push(Token::Star),
                 '!' => tokens.push(Token::Bang),
+                '<' => tokens.push(Token::LeftAngleBracket),
+                '>' => tokens.push(Token::RightAngleBracket),
+
+                // Multiple case tokens
+                '-' => {
+                    // Prevent indexing past the length of the line
+                    if (i + 1) >= chars_vec.len() {
+                        tokens.push(Token::Minus);
+                    } else {
+                        if chars_vec[i + 1] == '>' {
+                            tokens.push(Token::Arrow);
+                            i += 1;
+                        } else {
+                            tokens.push(Token::Minus);
+                        }
+                    }
+                }
+
                 _ => {}
             }
+
+            i += 1;
         }
     }
+    tokens.push(Token::Eof);
 
     Ok(tokens)
 }
