@@ -4,11 +4,11 @@ pub enum Token {
     String(String),
     Int(i64),
     Float(f64),
-    Color(palette::Xyz),
-    ColorAlpha(palette::Xyza),
 
     Arrow,
     Lambda,
+
+    DoubleColon,
 
     LeftParen,
     RightParen,
@@ -28,19 +28,20 @@ pub enum Token {
     Let,
     In,
 
+    NewLine,
     Eof,
 }
 
 #[derive(Debug)]
 pub enum ScannerError {
-    Test,
+    UnboundedString,
 }
 impl std::error::Error for ScannerError {}
 
 impl std::fmt::Display for ScannerError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Test => writeln!(f, "Test"),
+            Self::UnboundedString => writeln!(f, "String without closing quotes detected!"),
         }
     }
 }
@@ -67,7 +68,7 @@ pub fn scan(source: String) -> Result<Vec<Token>, ScannerError> {
                 '<' => tokens.push(Token::LeftAngleBracket),
                 '>' => tokens.push(Token::RightAngleBracket),
 
-                // Multiple case tokens
+                // Arrow special logic
                 '-' => {
                     // Prevent indexing past the length of the line
                     if (i + 1) >= chars_vec.len() {
@@ -82,13 +83,85 @@ pub fn scan(source: String) -> Result<Vec<Token>, ScannerError> {
                     }
                 }
 
-                _ => {}
+                // Strings
+                '"' => {
+                    tokens.push(scan_string(&mut i, &chars_vec)?);
+                    // i -= 1;
+                },
+
+                // All other tokens
+                _ => {
+                    if let Some(token) = search_for_token(&mut i, &chars_vec) {
+                        tokens.push(token);
+                        // i -= 1;
+                    }
+                }
             }
 
             i += 1;
         }
+
+        tokens.push(Token::NewLine);
     }
     tokens.push(Token::Eof);
 
     Ok(tokens)
+}
+
+fn search_for_token(i: &mut usize, chars: &Vec<char>) -> Option<Token> {
+    let mut token = String::new();
+
+    while *i < chars.len() {
+        if chars[*i] == ' ' || chars[*i] == ')' || chars[*i] == '(' {
+            break;
+        } else {
+            token.push(chars[*i])
+        }
+        *i += 1;
+    }
+
+    if token.contains(".") {
+        if let Ok(num) = token.parse() {
+            return Some(Token::Float(num));
+        }
+    } else {
+        if let Ok(num) = token.parse() {
+            return Some(Token::Int(num));
+        }
+    }
+
+    let token = match token.as_str() {
+        "" => None,
+        "if" => Some(Token::If),
+        "then" => Some(Token::Then),
+        "else" => Some(Token::Else),
+        "let" => Some(Token::Let),
+        "In" => Some(Token::In),
+        "::" => Some(Token::DoubleColon),
+
+        ident => Some(Token::Ident(String::from(ident))),
+    };
+
+    token
+}
+
+fn scan_string(i: &mut usize, chars: &Vec<char>) -> Result<Token, ScannerError> {
+    *i += 1;
+    
+    let mut string = String::new();
+    while *i < chars.len() {
+        if *i + 1 >= chars.len() {
+            return Err(ScannerError::UnboundedString);
+        }
+
+        if chars[*i] == '"' {
+            break;
+        } else {
+            string.push(chars[*i]);
+        }
+
+        *i += 1;
+    }
+
+    Ok(Token::String(string))
 }
