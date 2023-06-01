@@ -4,23 +4,25 @@ pub enum Token {
     String(String),
     Int(i64),
     Float(f64),
+    Bool(bool),
 
-    Arrow,
     Lambda,
-
-    DoubleColon,
 
     LeftParen,
     RightParen,
 
     Equals,
     Plus,
-    Minus,
+    Dash,
     Slash,
     Star,
     Bang,
     LeftAngleBracket,
     RightAngleBracket,
+    Colon,
+    Ampersand,
+    Bar,
+    Caret,
 
     If,
     Then,
@@ -67,27 +69,17 @@ pub fn scan(source: String) -> Result<Vec<Token>, ScannerError> {
                 '!' => tokens.push(Token::Bang),
                 '<' => tokens.push(Token::LeftAngleBracket),
                 '>' => tokens.push(Token::RightAngleBracket),
-
-                // Arrow special logic
-                '-' => {
-                    // Prevent indexing past the length of the line
-                    if (i + 1) >= chars_vec.len() {
-                        tokens.push(Token::Minus);
-                    } else {
-                        if chars_vec[i + 1] == '>' {
-                            tokens.push(Token::Arrow);
-                            i += 1;
-                        } else {
-                            tokens.push(Token::Minus);
-                        }
-                    }
-                }
+                '-' => tokens.push(Token::Dash),
+                ':' => tokens.push(Token::Colon),
+                '&' => tokens.push(Token::Ampersand),
+                '|' => tokens.push(Token::Bar),
+                '^' => tokens.push(Token::Caret),
 
                 // Strings
                 '"' => {
                     tokens.push(scan_string(&mut i, &chars_vec)?);
                     // i -= 1;
-                },
+                }
 
                 // All other tokens
                 _ => {
@@ -112,7 +104,7 @@ fn search_for_token(i: &mut usize, chars: &Vec<char>) -> Option<Token> {
     let mut token = String::new();
 
     while *i < chars.len() {
-        if chars[*i] == ' ' || chars[*i] == ')' || chars[*i] == '(' {
+        if chars[*i] == ' ' || chars[*i] == ')' || chars[*i] == '(' || chars[*i] == '\n' {
             break;
         } else {
             token.push(chars[*i])
@@ -136,8 +128,9 @@ fn search_for_token(i: &mut usize, chars: &Vec<char>) -> Option<Token> {
         "then" => Some(Token::Then),
         "else" => Some(Token::Else),
         "let" => Some(Token::Let),
-        "In" => Some(Token::In),
-        "::" => Some(Token::DoubleColon),
+        "in" => Some(Token::In),
+        "True" => Some(Token::Bool(true)),
+        "False" => Some(Token::Bool(false)),
 
         ident => Some(Token::Ident(String::from(ident))),
     };
@@ -147,7 +140,7 @@ fn search_for_token(i: &mut usize, chars: &Vec<char>) -> Option<Token> {
 
 fn scan_string(i: &mut usize, chars: &Vec<char>) -> Result<Token, ScannerError> {
     *i += 1;
-    
+
     let mut string = String::new();
     while *i < chars.len() {
         if *i + 1 >= chars.len() {
