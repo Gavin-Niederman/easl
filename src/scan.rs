@@ -76,10 +76,13 @@ impl Iterator for Tokens {
 pub enum ScannerError {
     #[error("Unbounded string")]
     #[diagnostic(help("Add closing doublequote"))]
-    UnboundedString(usize),
-    #[error("Unscannable token")]
-    #[diagnostic(help("Check this code"))]
-    UnparsableToken(usize, usize),
+    UnboundedString {
+        #[source_code]
+        src: String,
+
+        #[label]
+        err_location: miette::SourceOffset,
+    },
 }
 
 pub fn scan(source: String) -> Result<Tokens, ScannerError> {
@@ -88,6 +91,9 @@ pub fn scan(source: String) -> Result<Tokens, ScannerError> {
     let mut chars = source.char_indices().peekable();
 
     // Generate tokens untill EOF
+    let mut line = 1;
+    let mut col = 1;
+
     loop {
         if let Some((start_offset, string)) = chars.next() {
             let mut string = String::from(string);
@@ -97,29 +103,45 @@ pub fn scan(source: String) -> Result<Tokens, ScannerError> {
             let token_type = match string.as_str() {
                 "#" => {
                     comment(&mut chars);
+                    line += 1;
+                    col = 1;
                     continue;
-                },
+                }
                 "\"" => {
-                    tokens.push(scan_string(&mut chars, start_offset)?);
+                    if let Some(string) = scan_string(&mut chars, start_offset) {
+                        tokens.push(string)
+                    } else {
+                        let err_location = miette::SourceOffset::from_location(&source, line, col);
+
+                        return Err(ScannerError::UnboundedString { src: source, err_location, });
+                    }
+                    continue;
+                }
+                "\n" => {
+                    line += 1;
+                    col = 1;
                     continue;
                 },
-                "\n" | " " => continue,
+                " " => {
+                    col += 1;
+                    continue;
+                },
                 "\\" => Some(TokenType::Lambda),
-                "(" =>  Some(TokenType::LeftParen), 
-                ")" =>  Some(TokenType::RightParen) ,
-                "=" =>  Some(TokenType::Equals), 
-                "+" =>  Some(TokenType::Plus), 
-                "/" =>  Some(TokenType::Slash), 
-                "*" =>  Some(TokenType::Star), 
-                "!" =>  Some(TokenType::Bang), 
-                "<" =>  Some(TokenType::LeftAngleBracket),
-                ">" =>  Some(TokenType::RightAngleBracket),
-                "-" =>  Some(TokenType::Dash), 
-                ":" =>  Some(TokenType::Colon), 
-                "&" =>  Some(TokenType::Ampersand), 
-                "|" =>  Some(TokenType::Bar), 
-                "^" =>  Some(TokenType::Caret), 
-                _ => None
+                "(" => Some(TokenType::LeftParen),
+                ")" => Some(TokenType::RightParen),
+                "=" => Some(TokenType::Equals),
+                "+" => Some(TokenType::Plus),
+                "/" => Some(TokenType::Slash),
+                "*" => Some(TokenType::Star),
+                "!" => Some(TokenType::Bang),
+                "<" => Some(TokenType::LeftAngleBracket),
+                ">" => Some(TokenType::RightAngleBracket),
+                "-" => Some(TokenType::Dash),
+                ":" => Some(TokenType::Colon),
+                "&" => Some(TokenType::Ampersand),
+                "|" => Some(TokenType::Bar),
+                "^" => Some(TokenType::Caret),
+                _ => None,
             };
 
             if let Some(token_type) = token_type {
@@ -129,18 +151,30 @@ pub fn scan(source: String) -> Result<Tokens, ScannerError> {
                     len: 1,
                 });
 
+                col += 1;
                 continue;
             }
 
             // Multi character tokens
             while chars.peek().is_some() {
                 match chars.next().unwrap().1 {
-                    '\n' | ' ' | '(' | ')' => break,
+                    '\n' => {
+                        line += 1;
+                        col = 1;
+                        break;
+                    },
+                    ' ' => {
+                        col += 1;
+                        break;
+                    }
+                    '(' | ')' => break,
                     ch => {
                         string.push(ch);
                         len += 1;
                     }
                 }
+
+                col += 1;
             }
 
             let mut token_type = match string.as_str() {
@@ -201,7 +235,7 @@ fn comment(chars: &mut std::iter::Peekable<std::str::CharIndices>) {
 fn scan_string(
     chars: &mut std::iter::Peekable<std::str::CharIndices>,
     start_offset: usize,
-) -> Result<Token, ScannerError> {
+) -> Option<Token> {
     let mut string = String::new();
     let mut len = 0;
     while chars.peek().is_some() {
@@ -211,15 +245,15 @@ fn scan_string(
             '"' => break,
             ch => {
                 if chars.peek().is_none() {
-                    return Err(ScannerError::UnboundedString(start_offset));
+                    return None;
                 }
                 string.push(ch)
-            },
+            }
         }
         len += 1;
     }
 
-    Ok(Token {
+    Some(Token {
         token_type: TokenType::String(string),
         start_offset,
         len,
