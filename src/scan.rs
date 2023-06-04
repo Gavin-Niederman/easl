@@ -1,5 +1,8 @@
-#[derive(Debug)]
-pub enum Token {
+use miette::Diagnostic;
+use thiserror::Error;
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum TokenType {
     Ident(String),
     String(String),
     Int(i64),
@@ -34,127 +37,191 @@ pub enum Token {
     Eof,
 }
 
-#[derive(Debug)]
-pub enum ScannerError {
-    UnboundedString,
+#[derive(Debug, Clone, PartialEq)]
+pub struct Token {
+    pub token_type: TokenType,
+    pub start_offset: usize,
+    pub len: usize,
 }
-impl std::error::Error for ScannerError {}
 
-impl std::fmt::Display for ScannerError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::UnboundedString => writeln!(f, "String without closing quotes detected!"),
+impl Token {
+    pub fn new(token_type: TokenType, start_offset: usize, len: usize) -> Self {
+        Self {
+            token_type,
+            start_offset,
+            len,
         }
     }
 }
 
-pub fn scan(source: String) -> Result<Vec<Token>, ScannerError> {
+pub struct Tokens {
+    tokens: Vec<Token>,
+}
+
+impl Iterator for Tokens {
+    type Item = Token;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.tokens.is_empty() {
+            None
+        } else {
+            let token = self.tokens[0].clone();
+            self.tokens = self.tokens[1..].to_vec();
+            Some(token)
+        }
+    }
+}
+
+#[derive(Error, Debug, Diagnostic)]
+pub enum ScannerError {
+    #[error("Unbounded string")]
+    #[diagnostic(help("Add closing doublequote"))]
+    UnboundedString(usize),
+    #[error("Unscannable token")]
+    #[diagnostic(help("Check this code"))]
+    UnparsableToken(usize, usize),
+}
+
+pub fn scan(source: String) -> Result<Tokens, ScannerError> {
     let mut tokens = Vec::new();
 
-    for line in source.lines() {
-        let chars_vec: Vec<char> = line.chars().collect();
-        let mut i = 0;
-        while i < chars_vec.len() {
-            let ch = chars_vec[i];
-            match ch {
-                // Single character tokens
-                '#' => break,
-                '\\' => tokens.push(Token::Lambda),
-                '(' => tokens.push(Token::LeftParen),
-                ')' => tokens.push(Token::RightParen),
-                '=' => tokens.push(Token::Equals),
-                '+' => tokens.push(Token::Plus),
-                '/' => tokens.push(Token::Slash),
-                '*' => tokens.push(Token::Star),
-                '!' => tokens.push(Token::Bang),
-                '<' => tokens.push(Token::LeftAngleBracket),
-                '>' => tokens.push(Token::RightAngleBracket),
-                '-' => tokens.push(Token::Dash),
-                ':' => tokens.push(Token::Colon),
-                '&' => tokens.push(Token::Ampersand),
-                '|' => tokens.push(Token::Bar),
-                '^' => tokens.push(Token::Caret),
+    let mut chars = source.char_indices().peekable();
 
-                // Strings
-                '"' => {
-                    tokens.push(scan_string(&mut i, &chars_vec)?);
-                    // i -= 1;
-                }
+    // Generate tokens untill EOF
+    loop {
+        if let Some((start_offset, string)) = chars.next() {
+            let mut string = String::from(string);
+            let mut len = 0;
 
-                // All other tokens
-                _ => {
-                    if let Some(token) = search_for_token(&mut i, &chars_vec) {
-                        tokens.push(token);
-                        // i -= 1;
+            // Single character tokens
+            let token_type = match string.as_str() {
+                "#" => {
+                    comment(&mut chars);
+                    continue;
+                },
+                "\"" => {
+                    tokens.push(scan_string(&mut chars, start_offset)?);
+                    continue;
+                },
+                "\n" | " " => continue,
+                "\\" => Some(TokenType::Lambda),
+                "(" =>  Some(TokenType::LeftParen), 
+                ")" =>  Some(TokenType::RightParen) ,
+                "=" =>  Some(TokenType::Equals), 
+                "+" =>  Some(TokenType::Plus), 
+                "/" =>  Some(TokenType::Slash), 
+                "*" =>  Some(TokenType::Star), 
+                "!" =>  Some(TokenType::Bang), 
+                "<" =>  Some(TokenType::LeftAngleBracket),
+                ">" =>  Some(TokenType::RightAngleBracket),
+                "-" =>  Some(TokenType::Dash), 
+                ":" =>  Some(TokenType::Colon), 
+                "&" =>  Some(TokenType::Ampersand), 
+                "|" =>  Some(TokenType::Bar), 
+                "^" =>  Some(TokenType::Caret), 
+                _ => None
+            };
+
+            if let Some(token_type) = token_type {
+                tokens.push(Token {
+                    token_type,
+                    start_offset,
+                    len: 1,
+                });
+
+                continue;
+            }
+
+            // Multi character tokens
+            while chars.peek().is_some() {
+                match chars.next().unwrap().1 {
+                    '\n' | ' ' | '(' | ')' => break,
+                    ch => {
+                        string.push(ch);
+                        len += 1;
                     }
                 }
             }
 
-            i += 1;
-        }
+            let mut token_type = match string.as_str() {
+                "if" => Some(TokenType::If),
+                "then" => Some(TokenType::Then),
+                "else" => Some(TokenType::Else),
+                "let" => Some(TokenType::Let),
+                "in" => Some(TokenType::In),
+                "True" => Some(TokenType::Bool(true)),
+                "False" => Some(TokenType::Bool(false)),
+                "" | " " => None,
 
-        tokens.push(Token::NewLine);
-    }
-    tokens.push(Token::Eof);
+                ident => Some(TokenType::Ident(String::from(ident))),
+            };
 
-    Ok(tokens)
-}
+            // Check for numbers
+            if string.contains(".") {
+                if let Ok(num) = string.parse() {
+                    token_type = Some(TokenType::Float(num));
+                }
+            } else {
+                if let Ok(num) = string.parse() {
+                    token_type = Some(TokenType::Int(num));
+                }
+            }
 
-fn search_for_token(i: &mut usize, chars: &Vec<char>) -> Option<Token> {
-    let mut token = String::new();
-
-    while *i < chars.len() {
-        if chars[*i] == ' ' || chars[*i] == ')' || chars[*i] == '(' || chars[*i] == '\n' {
-            break;
+            // This should always pass becuase of idents, except for a token with only a space or nothing at all.
+            if let Some(tokenized) = token_type {
+                let token_type = tokenized;
+                tokens.push(Token {
+                    token_type,
+                    start_offset,
+                    len,
+                })
+            }
+        // We have reached the end
         } else {
-            token.push(chars[*i])
-        }
-        *i += 1;
-    }
-
-    if token.contains(".") {
-        if let Ok(num) = token.parse() {
-            return Some(Token::Float(num));
-        }
-    } else {
-        if let Ok(num) = token.parse() {
-            return Some(Token::Int(num));
+            tokens.push(Token {
+                token_type: TokenType::Eof,
+                start_offset: 0,
+                len: 0,
+            });
+            break;
         }
     }
 
-    let token = match token.as_str() {
-        "" => None,
-        "if" => Some(Token::If),
-        "then" => Some(Token::Then),
-        "else" => Some(Token::Else),
-        "let" => Some(Token::Let),
-        "in" => Some(Token::In),
-        "True" => Some(Token::Bool(true)),
-        "False" => Some(Token::Bool(false)),
-
-        ident => Some(Token::Ident(String::from(ident))),
-    };
-
-    token
+    Ok(Tokens { tokens })
 }
 
-fn scan_string(i: &mut usize, chars: &Vec<char>) -> Result<Token, ScannerError> {
-    *i += 1;
+fn comment(chars: &mut std::iter::Peekable<std::str::CharIndices>) {
+    for (_, ch) in chars {
+        if ch == '\n' {
+            break;
+        }
+    }
+}
 
+fn scan_string(
+    chars: &mut std::iter::Peekable<std::str::CharIndices>,
+    start_offset: usize,
+) -> Result<Token, ScannerError> {
     let mut string = String::new();
-    while *i < chars.len() {
-        if *i + 1 >= chars.len() {
-            return Err(ScannerError::UnboundedString);
-        }
+    let mut len = 0;
+    while chars.peek().is_some() {
+        let (_, ch) = chars.next().unwrap();
 
-        if chars[*i] == '"' {
-            break;
-        } else {
-            string.push(chars[*i]);
+        match ch {
+            '"' => break,
+            ch => {
+                if chars.peek().is_none() {
+                    return Err(ScannerError::UnboundedString(start_offset));
+                }
+                string.push(ch)
+            },
         }
-
-        *i += 1;
+        len += 1;
     }
 
-    Ok(Token::String(string))
+    Ok(Token {
+        token_type: TokenType::String(string),
+        start_offset,
+        len,
+    })
 }

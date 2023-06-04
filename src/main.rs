@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use anyhow::{Context, Result};
+use miette::Result;
 use clap::Parser;
 
 #[derive(Parser, Clone)]
@@ -12,14 +12,13 @@ struct Args {
 fn main() -> Result<()> {
     let args = Args::parse();
 
-    let args_copy = args.clone();
-    let source = std::fs::read_to_string(args.source_file).with_context({
-        || format!("Failed to read file {}", args_copy.source_file.display())
-    })?;
-
-    let tokens = easl::scan(source).with_context(|| "Failed to parse source file")?;
-
-    println!("{tokens:?}");
+    if let Ok(source) = std::fs::read_to_string(args.source_file) {
+        let tokens = easl::scan(source)?;
+    
+        println!("{:?}", tokens.collect::<Vec<easl::Token>>());
+    } else {
+        return Err(miette::Report::msg("Could not read source file"));
+    }
 
     Ok(())
 }

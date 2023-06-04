@@ -93,6 +93,6 @@ pub struct BinaryExpr {
     pub right_expr: Expr,
 }
 
-pub fn parse(tokens: Vec<Token>) -> Result(Expr) {
-    
-}
+// pub fn parse(tokens: Vec<Token>) -> Result(Expr) {
+
+// }

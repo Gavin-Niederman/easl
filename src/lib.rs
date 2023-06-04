@@ -1,4 +1,4 @@
-pub mod scan;
 pub mod parse;
-pub use scan::*;
+pub mod scan;
 pub use parse::*;
+pub use scan::*;
