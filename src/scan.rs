@@ -119,7 +119,8 @@ pub fn scan(source: String) -> Result<Tokens, ScannerError> {
                         if let Some(token) = create_short_token(ch, line, offset, &source) {
                             tokens.push(token);
                             string.clear();
-                            start_offset = miette::SourceOffset::from_location(&source, line, offset);
+                            start_offset =
+                                miette::SourceOffset::from_location(&source, line, offset);
                         } else {
                             string.push(ch);
                         }
@@ -129,14 +130,14 @@ pub fn scan(source: String) -> Result<Tokens, ScannerError> {
                 end_col = offset;
             }
 
-            if let Some(token_type) = match_token_type(string.as_str()) {
-                tokens.push(Token {
-                    token_type,
-                    span: miette::SourceSpan::new(
-                        start_offset,
-                        miette::SourceOffset::from_location(&source, line, end_col),
-                    ),
-                })
+            if let Some(token) = create_long_token(
+                &string,
+                miette::SourceSpan::new(
+                    start_offset,
+                    miette::SourceOffset::from_location(&source, line, end_col),
+                ),
+            ) {
+                tokens.push(token);
             }
         }
     }
@@ -144,23 +145,8 @@ pub fn scan(source: String) -> Result<Tokens, ScannerError> {
     Ok(Tokens { tokens })
 }
 
-fn match_token_type(token: &str) -> Option<TokenType> {
-    match token {
-        "\\" => Some(TokenType::Lambda),
-        "(" => Some(TokenType::LeftParen),
-        ")" => Some(TokenType::RightParen),
-        "=" => Some(TokenType::Equals),
-        "+" => Some(TokenType::Plus),
-        "-" => Some(TokenType::Dash),
-        "/" => Some(TokenType::Slash),
-        "*" => Some(TokenType::Star),
-        "!" => Some(TokenType::Bang),
-        "<" => Some(TokenType::LeftAngleBracket),
-        ">" => Some(TokenType::RightAngleBracket),
-        ":" => Some(TokenType::Colon),
-        "&" => Some(TokenType::Ampersand),
-        "|" => Some(TokenType::Bar),
-        "^" => Some(TokenType::Caret),
+fn create_long_token(token: &str, span: miette::SourceSpan) -> Option<Token> {
+    if let Some(token_type) = match token {
         "if" => Some(TokenType::If),
         "then" => Some(TokenType::Then),
         "else" => Some(TokenType::Else),
@@ -170,27 +156,30 @@ fn match_token_type(token: &str) -> Option<TokenType> {
         "False" => Some(TokenType::Bool(false)),
         "" => None,
         other => {
+            let ident = Some(TokenType::Ident(other.to_string()));
+
             if other.contains(".") {
                 if let Ok(float) = other.parse() {
-                    return Some(TokenType::Float(float));
+                    Some(TokenType::Float(float))
+                } else {
+                    ident
                 }
             } else {
                 if let Ok(int) = other.parse() {
-                    return Some(TokenType::Int(int));
+                    Some(TokenType::Int(int))
+                } else {
+                    ident
                 }
             }
-
-            Some(TokenType::Ident(other.to_string()))
         }
+    } {
+        return Some(Token { token_type, span });
     }
+
+    None
 }
 
-fn create_short_token(
-    ch: char,
-    loc_line: usize,
-    loc_col: usize,
-    source: &str,
-) -> Option<Token> {
+fn create_short_token(ch: char, loc_line: usize, loc_col: usize, source: &str) -> Option<Token> {
     if let Some(token_type) = match ch {
         '\\' => Some(TokenType::Lambda),
         '(' => Some(TokenType::LeftParen),
