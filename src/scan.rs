@@ -40,18 +40,7 @@ pub enum TokenType {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Token {
     pub token_type: TokenType,
-    pub start_offset: usize,
-    pub len: usize,
-}
-
-impl Token {
-    pub fn new(token_type: TokenType, start_offset: usize, len: usize) -> Self {
-        Self {
-            token_type,
-            start_offset,
-            len,
-        }
-    }
+    pub span: miette::SourceSpan,
 }
 
 pub struct Tokens {
@@ -88,174 +77,146 @@ pub enum ScannerError {
 pub fn scan(source: String) -> Result<Tokens, ScannerError> {
     let mut tokens = Vec::new();
 
-    let mut chars = source.char_indices().peekable();
+    let mut loc_line = 0;
 
-    // Generate tokens untill EOF
-    let mut line = 1;
-    let mut col = 1;
+    let lines = source.lines().map(|line| {
+        let mut loc_col = 0;
 
-    loop {
-        if let Some((start_offset, string)) = chars.next() {
-            let mut string = String::from(string);
-            let mut len = 0;
+        let words = line.split(' ').map(move |word| {
+            let start_offset = loc_col;
 
-            // Single character tokens
-            let token_type = match string.as_str() {
-                "#" => {
-                    comment(&mut chars);
-                    line += 1;
-                    col = 1;
-                    continue;
-                }
-                "\"" => {
-                    if let Some(string) = scan_string(&mut chars, start_offset) {
-                        tokens.push(string)
-                    } else {
-                        let err_location = miette::SourceOffset::from_location(&source, line, col);
+            let chars = word.chars().map(move |ch| {
+                loc_col += 1;
 
-                        return Err(ScannerError::UnboundedString { src: source, err_location, });
-                    }
-                    continue;
-                }
-                "\n" => {
-                    line += 1;
-                    col = 1;
-                    continue;
-                },
-                " " => {
-                    col += 1;
-                    continue;
-                },
-                "\\" => Some(TokenType::Lambda),
-                "(" => Some(TokenType::LeftParen),
-                ")" => Some(TokenType::RightParen),
-                "=" => Some(TokenType::Equals),
-                "+" => Some(TokenType::Plus),
-                "/" => Some(TokenType::Slash),
-                "*" => Some(TokenType::Star),
-                "!" => Some(TokenType::Bang),
-                "<" => Some(TokenType::LeftAngleBracket),
-                ">" => Some(TokenType::RightAngleBracket),
-                "-" => Some(TokenType::Dash),
-                ":" => Some(TokenType::Colon),
-                "&" => Some(TokenType::Ampersand),
-                "|" => Some(TokenType::Bar),
-                "^" => Some(TokenType::Caret),
-                _ => None,
-            };
+                (loc_col, ch)
+            });
 
-            if let Some(token_type) = token_type {
-                tokens.push(Token {
-                    token_type,
-                    start_offset,
-                    len: 1,
-                });
-
-                col += 1;
-                continue;
+            if let Some((offset, _)) = chars.clone().last() {
+                loc_col += offset - start_offset + 1;
             }
 
-            // Multi character tokens
-            while chars.peek().is_some() {
-                match chars.next().unwrap().1 {
-                    '\n' => {
-                        line += 1;
-                        col = 1;
-                        break;
-                    },
-                    ' ' => {
-                        col += 1;
-                        break;
-                    }
-                    '(' | ')' => break,
+            chars
+        });
+
+        loc_line += 1;
+
+        (loc_line, words)
+    });
+
+    for (line, words) in lines {
+        let mut start_offset = miette::SourceOffset::from_location(&source, line, 0);
+
+        'words: for word in words {
+            let mut end_col = 0;
+            let mut string = String::new();
+
+            for (offset, ch) in word {
+                start_offset = miette::SourceOffset::from_location(&source, line, offset);
+
+                match ch {
+                    '#' => break 'words,
                     ch => {
-                        string.push(ch);
-                        len += 1;
+                        if let Some(token) = create_short_token(ch, line, offset, &source) {
+                            tokens.push(token);
+                            string.clear();
+                            start_offset = miette::SourceOffset::from_location(&source, line, offset);
+                        } else {
+                            string.push(ch);
+                        }
                     }
                 }
 
-                col += 1;
+                end_col = offset;
             }
 
-            let mut token_type = match string.as_str() {
-                "if" => Some(TokenType::If),
-                "then" => Some(TokenType::Then),
-                "else" => Some(TokenType::Else),
-                "let" => Some(TokenType::Let),
-                "in" => Some(TokenType::In),
-                "True" => Some(TokenType::Bool(true)),
-                "False" => Some(TokenType::Bool(false)),
-                "" | " " => None,
-
-                ident => Some(TokenType::Ident(String::from(ident))),
-            };
-
-            // Check for numbers
-            if string.contains(".") {
-                if let Ok(num) = string.parse() {
-                    token_type = Some(TokenType::Float(num));
-                }
-            } else {
-                if let Ok(num) = string.parse() {
-                    token_type = Some(TokenType::Int(num));
-                }
-            }
-
-            // This should always pass becuase of idents, except for a token with only a space or nothing at all.
-            if let Some(tokenized) = token_type {
-                let token_type = tokenized;
+            if let Some(token_type) = match_token_type(string.as_str()) {
                 tokens.push(Token {
                     token_type,
-                    start_offset,
-                    len,
+                    span: miette::SourceSpan::new(
+                        start_offset,
+                        miette::SourceOffset::from_location(&source, line, end_col),
+                    ),
                 })
             }
-        // We have reached the end
-        } else {
-            tokens.push(Token {
-                token_type: TokenType::Eof,
-                start_offset: 0,
-                len: 0,
-            });
-            break;
         }
     }
 
     Ok(Tokens { tokens })
 }
 
-fn comment(chars: &mut std::iter::Peekable<std::str::CharIndices>) {
-    for (_, ch) in chars {
-        if ch == '\n' {
-            break;
+fn match_token_type(token: &str) -> Option<TokenType> {
+    match token {
+        "\\" => Some(TokenType::Lambda),
+        "(" => Some(TokenType::LeftParen),
+        ")" => Some(TokenType::RightParen),
+        "=" => Some(TokenType::Equals),
+        "+" => Some(TokenType::Plus),
+        "-" => Some(TokenType::Dash),
+        "/" => Some(TokenType::Slash),
+        "*" => Some(TokenType::Star),
+        "!" => Some(TokenType::Bang),
+        "<" => Some(TokenType::LeftAngleBracket),
+        ">" => Some(TokenType::RightAngleBracket),
+        ":" => Some(TokenType::Colon),
+        "&" => Some(TokenType::Ampersand),
+        "|" => Some(TokenType::Bar),
+        "^" => Some(TokenType::Caret),
+        "if" => Some(TokenType::If),
+        "then" => Some(TokenType::Then),
+        "else" => Some(TokenType::Else),
+        "let" => Some(TokenType::Let),
+        "in" => Some(TokenType::In),
+        "True" => Some(TokenType::Bool(true)),
+        "False" => Some(TokenType::Bool(false)),
+        "" => None,
+        other => {
+            if other.contains(".") {
+                if let Ok(float) = other.parse() {
+                    return Some(TokenType::Float(float));
+                }
+            } else {
+                if let Ok(int) = other.parse() {
+                    return Some(TokenType::Int(int));
+                }
+            }
+
+            Some(TokenType::Ident(other.to_string()))
         }
     }
 }
 
-fn scan_string(
-    chars: &mut std::iter::Peekable<std::str::CharIndices>,
-    start_offset: usize,
+fn create_short_token(
+    ch: char,
+    loc_line: usize,
+    loc_col: usize,
+    source: &str,
 ) -> Option<Token> {
-    let mut string = String::new();
-    let mut len = 0;
-    while chars.peek().is_some() {
-        let (_, ch) = chars.next().unwrap();
-
-        match ch {
-            '"' => break,
-            ch => {
-                if chars.peek().is_none() {
-                    return None;
-                }
-                string.push(ch)
-            }
-        }
-        len += 1;
+    if let Some(token_type) = match ch {
+        '\\' => Some(TokenType::Lambda),
+        '(' => Some(TokenType::LeftParen),
+        ')' => Some(TokenType::RightParen),
+        '=' => Some(TokenType::Equals),
+        '+' => Some(TokenType::Plus),
+        '-' => Some(TokenType::Dash),
+        '/' => Some(TokenType::Slash),
+        '*' => Some(TokenType::Star),
+        '!' => Some(TokenType::Bang),
+        '<' => Some(TokenType::LeftAngleBracket),
+        '>' => Some(TokenType::RightAngleBracket),
+        ':' => Some(TokenType::Colon),
+        '&' => Some(TokenType::Ampersand),
+        '|' => Some(TokenType::Bar),
+        '^' => Some(TokenType::Caret),
+        _ => None,
+    } {
+        return Some(Token {
+            token_type,
+            span: miette::SourceSpan::new(
+                miette::SourceOffset::from_location(source, loc_line, loc_col),
+                miette::SourceOffset::from_location(source, loc_line, loc_col + 1),
+            ),
+        });
     }
 
-    Some(Token {
-        token_type: TokenType::String(string),
-        start_offset,
-        len,
-    })
+    None
 }

@@ -15,7 +15,7 @@ fn main() -> Result<()> {
     if let Ok(source) = std::fs::read_to_string(args.source_file) {
         let tokens = easl::scan(source)?;
     
-        println!("{:?}", tokens.collect::<Vec<easl::Token>>());
+        println!("{:?}", tokens.map(|token| token.token_type).collect::<Vec<easl::TokenType>>());
     } else {
         return Err(miette::Report::msg("Could not read source file"));
     }

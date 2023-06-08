@@ -1,6 +1,6 @@
 # this is a comment
 string_fn :: String -> Int
-string_fn "hi = 1 
+string_fn "hi" = 1
 
 frag :: Int -> Color
 frag pos = rgb (pos / 10.0) 0.5 0.5
