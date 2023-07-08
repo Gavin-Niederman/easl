@@ -1,4 +1,7 @@
-use crate::Token;
+use miette::Diagnostic;
+use thiserror::Error;
+
+use crate::{TokenType, Tokens, SOURCE};
 
 #[derive(Debug)]
 pub enum Expr {
@@ -81,11 +84,6 @@ pub enum BinaryOperator {
     Mod,
 }
 
-enum Associativity {
-    Left,
-    Right,
-}
-
 #[derive(Debug)]
 pub struct BinaryExpr {
     pub operator: BinaryOperator,
@@ -93,6 +91,56 @@ pub struct BinaryExpr {
     pub right_expr: Expr,
 }
 
-// pub fn parse(tokens: Vec<Token>) -> Result(Expr) {
+pub fn parse(mut tokens: Tokens) -> Result<Expr, ParserError> {
+    equality(&mut tokens)
+}
 
-// }
+fn equality(tokens: &mut Tokens) -> Result<Expr, ParserError> {
+    let left = comparison(tokens)?;
+
+    loop {
+        let Ok(next_tokens) = tokens.clone().next_chunk::<2>() else {
+            break
+        };
+        match (
+            next_tokens[0].clone().token_type,
+            next_tokens[1].clone().token_type,
+        ) {
+            (TokenType::Bang, TokenType::Equals) => {
+                tokens.next_chunk::<2>().unwrap();
+            }
+            (TokenType::Equals, TokenType::Equals) => {
+                tokens.next_chunk::<2>().unwrap();
+            }
+            _ => {
+                break;
+            }
+        }
+    }
+
+    Ok(left)
+}
+
+fn comparison(tokens: &mut Tokens) -> Result<Expr, ParserError> {
+    let start_offset = tokens.next().unwrap().offset;
+    Err(ParserError::Test {
+        src: SOURCE.to_string(),
+        span: miette::SourceSpan::new(
+            start_offset,
+            (tokens.next().unwrap().offset.offset() - start_offset.offset()).into(),
+        ),
+    })
+}
+
+#[derive(Error, Diagnostic, Debug)]
+pub enum ParserError {
+    #[error("Test")]
+    #[diagnostic(help = "Test")]
+    Test {
+        #[source_code]
+        src: String,
+
+        #[label]
+        span: miette::SourceSpan,
+    },
+}

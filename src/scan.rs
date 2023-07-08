@@ -1,6 +1,8 @@
 use miette::Diagnostic;
 use thiserror::Error;
 
+use crate::SOURCE;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
     Ident(String),
@@ -34,15 +36,17 @@ pub enum TokenType {
     In,
 
     NewLine,
+    Tab,
     Eof,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Token {
     pub token_type: TokenType,
-    pub span: miette::SourceSpan,
+    pub offset: miette::SourceOffset,
 }
 
+#[derive(Clone)]
 pub struct Tokens {
     tokens: Vec<Token>,
 }
@@ -74,12 +78,13 @@ pub enum ScannerError {
     },
 }
 
-pub fn scan(source: String) -> Result<Tokens, ScannerError> {
+pub fn scan() -> Result<Tokens, ScannerError> {
     let mut tokens = Vec::new();
 
     let mut loc_line = 0;
 
-    let lines = source.lines().map(|line| {
+    let binding = SOURCE.to_string();
+    let lines = binding.lines().map(|line| {
         let mut loc_col = 0;
 
         let words = line.split(' ').map(move |word| {
@@ -104,23 +109,17 @@ pub fn scan(source: String) -> Result<Tokens, ScannerError> {
     });
 
     for (line, words) in lines {
-        let mut start_offset = miette::SourceOffset::from_location(&source, line, 0);
-
         'words: for word in words {
             let mut end_col = 0;
             let mut string = String::new();
 
             for (offset, ch) in word {
-                start_offset = miette::SourceOffset::from_location(&source, line, offset);
-
                 match ch {
                     '#' => break 'words,
                     ch => {
-                        if let Some(token) = create_short_token(ch, line, offset, &source) {
+                        if let Some(token) = create_short_token(ch, line, offset) {
                             tokens.push(token);
                             string.clear();
-                            start_offset =
-                                miette::SourceOffset::from_location(&source, line, offset);
                         } else {
                             string.push(ch);
                         }
@@ -132,10 +131,7 @@ pub fn scan(source: String) -> Result<Tokens, ScannerError> {
 
             if let Some(token) = create_long_token(
                 &string,
-                miette::SourceSpan::new(
-                    start_offset,
-                    miette::SourceOffset::from_location(&source, line, end_col),
-                ),
+                miette::SourceOffset::from_location(&SOURCE.to_string(), line, end_col),
             ) {
                 tokens.push(token);
             }
@@ -145,7 +141,7 @@ pub fn scan(source: String) -> Result<Tokens, ScannerError> {
     Ok(Tokens { tokens })
 }
 
-fn create_long_token(token: &str, span: miette::SourceSpan) -> Option<Token> {
+fn create_long_token(token: &str, span: miette::SourceOffset) -> Option<Token> {
     if let Some(token_type) = match token {
         "if" => Some(TokenType::If),
         "then" => Some(TokenType::Then),
@@ -158,29 +154,31 @@ fn create_long_token(token: &str, span: miette::SourceSpan) -> Option<Token> {
         other => {
             let ident = Some(TokenType::Ident(other.to_string()));
 
-            if other.contains(".") {
+            if other.contains('.') {
                 if let Ok(float) = other.parse() {
                     Some(TokenType::Float(float))
                 } else {
                     ident
                 }
+            } else if let Ok(int) = other.parse() {
+                Some(TokenType::Int(int))
             } else {
-                if let Ok(int) = other.parse() {
-                    Some(TokenType::Int(int))
-                } else {
-                    ident
-                }
+                ident
             }
         }
     } {
-        return Some(Token { token_type, span });
+        return Some(Token {
+            token_type,
+            offset: span,
+        });
     }
 
     None
 }
 
-fn create_short_token(ch: char, loc_line: usize, loc_col: usize, source: &str) -> Option<Token> {
+fn create_short_token(ch: char, loc_line: usize, loc_col: usize) -> Option<Token> {
     if let Some(token_type) = match ch {
+        '\t' => Some(TokenType::Tab),
         '\\' => Some(TokenType::Lambda),
         '(' => Some(TokenType::LeftParen),
         ')' => Some(TokenType::RightParen),
@@ -200,10 +198,7 @@ fn create_short_token(ch: char, loc_line: usize, loc_col: usize, source: &str) -
     } {
         return Some(Token {
             token_type,
-            span: miette::SourceSpan::new(
-                miette::SourceOffset::from_location(source, loc_line, loc_col),
-                miette::SourceOffset::from_location(source, loc_line, loc_col + 1),
-            ),
+            offset: miette::SourceOffset::from_location(&SOURCE.to_string(), loc_line, loc_col),
         });
     }
 
