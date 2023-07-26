@@ -1,0 +1,37 @@
+WHITESPACE = _{ " " | NEWLINE }
+COMMENT = _{ "--" ~ (!NEWLINE ~ ANY)* ~ NEWLINE }
+
+file = { SOI ~ expr* ~ EOI }
+
+expr = { literal | type }
+
+// Literals
+literal = { int_l | bool_l | string_l | color_l }
+
+string_l = { "\"" ~ ("\\\"" | ANY)* ~ "\"" }
+
+bool_l = { true | false }
+true = { "true" }
+false = { "false" }
+
+int_l = { ("0x" ~ hex) | ( "0b" ~ binary) | decimal }
+hex = { (ASCII_HEX_DIGIT | "_")+ }
+binary = { ("0" | "1" | "_")+ }
+decimal = { ('0'..'9')+ }
+
+color_l = { "#" ~ (ASCII_HEX_DIGIT{3} | ASCII_HEX_DIGIT{6}) }
+
+//Types
+type = { fun | (base_type | grouped_type) }
+
+fun = { (base_type | grouped_type) ~ "->" ~(base_type | grouped_type) }
+
+base_type = @{ string_t | int_t | color_t | bool_t }
+string_t = { ^"String" }
+int_t = { ^"Int" }
+color_t = { ^"Color" }
+bool_t = { ^"Bool" }
+
+grouped_type = { array_t | tuple_t }
+array_t = { "[" ~ base_type ~ "]" }
+tuple_t = { "(" ~ base_type ~ ")" }
