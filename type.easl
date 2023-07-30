@@ -1,3 +1,3 @@
 -- fun comments
-easl :: Color
-easl = (rgb 255 255 255)
+easl :: Color -> Color
+easl  = if (True) then (hsv 1 1 1) else (rgb 1 1 1)

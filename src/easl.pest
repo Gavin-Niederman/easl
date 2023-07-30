@@ -1,35 +1,36 @@
 WHITESPACE = _{ " " }
 COMMENT = _{ "--" ~ (!NEWLINE ~ ANY)* ~ NEWLINE? }
 
-file = { SOI ~ statement* ~ EOI }
+file = { SOI ~ (statement | NEWLINE)* ~ EOI }
 
 ident = { ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "-" | "_")* }
 
 // Statements
 statement = { (assignment | type_ascription /* TODO: add more statements */) ~ NEWLINE? }
 assignment = { ident ~ "=" ~ expression ~ type_annotation? }
-type_ascription = { ident ~ type_annotation }
+type_ascription = { ident ~ expression* ~ type_annotation }
 
 type_annotation = { "::" ~ type }
 
 // Expressions
-expression = { literal | function_call | grouping }
+expression = { literal | if | function_call | grouping | ident }
 function_call = { ident ~ expression* }
+if = { "if" ~ expression ~ "then" ~ expression ~ "else" ~ expression }
 grouping = { "(" ~ expression ~ ")" }
 
 // Literals
 literal = { int_l | bool_l | string_l | color_l }
 
 string_l = { "\"" ~ ANY* ~ "\"" }
-
 bool_l = { true | false }
-true = { "true" }
-false = { "false" }
+true = { ^"True" }
+false = { ^"False" }
 
-int_l = { ("0x" ~ hex) | ( "0b" ~ binary) | decimal }
+int_l = @{ ("0x" ~ hex) | ( "0b" ~ binary) | decimal | float }
 hex = { (ASCII_HEX_DIGIT | "_")+ }
 binary = { ("0" | "1" | "_")+ }
 decimal = { ('0'..'9')+ }
+float = { decimal ~ "." ~ decimal }
 
 color_l = { "#" ~ (ASCII_HEX_DIGIT{3} | ASCII_HEX_DIGIT{6}) }
 
