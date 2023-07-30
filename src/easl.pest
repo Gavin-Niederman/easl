@@ -1,14 +1,26 @@
-WHITESPACE = _{ " " | NEWLINE }
-COMMENT = _{ "--" ~ (!NEWLINE ~ ANY)* ~ NEWLINE }
+WHITESPACE = _{ " " }
+COMMENT = _{ "--" ~ (!NEWLINE ~ ANY)* ~ NEWLINE? }
 
-file = { SOI ~ expr* ~ EOI }
+file = { SOI ~ statement* ~ EOI }
 
-expr = { literal | type }
+ident = { ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "-" | "_")* }
+
+// Statements
+statement = { (assignment | type_ascription /* TODO: add more statements */) ~ NEWLINE? }
+assignment = { ident ~ "=" ~ expression ~ type_annotation? }
+type_ascription = { ident ~ type_annotation }
+
+type_annotation = { "::" ~ type }
+
+// Expressions
+expression = { literal | function_call | grouping }
+function_call = { ident ~ expression* }
+grouping = { "(" ~ expression ~ ")" }
 
 // Literals
 literal = { int_l | bool_l | string_l | color_l }
 
-string_l = { "\"" ~ ("\\\"" | ANY)* ~ "\"" }
+string_l = { "\"" ~ ANY* ~ "\"" }
 
 bool_l = { true | false }
 true = { "true" }
@@ -21,17 +33,16 @@ decimal = { ('0'..'9')+ }
 
 color_l = { "#" ~ (ASCII_HEX_DIGIT{3} | ASCII_HEX_DIGIT{6}) }
 
-//Types
-type = { fun | (base_type | grouped_type) }
+// Types
+type = { fun_t | base_type }
 
-fun = { (base_type | grouped_type) ~ "->" ~(base_type | grouped_type) }
+fun_t = { base_type ~ "->" ~ type }
 
-base_type = @{ string_t | int_t | color_t | bool_t }
+base_type = @{ string_t | int_t | color_t | bool_t | unit_t | array_t | tuple_t }
 string_t = { ^"String" }
 int_t = { ^"Int" }
 color_t = { ^"Color" }
 bool_t = { ^"Bool" }
-
-grouped_type = { array_t | tuple_t }
+unit_t = { "()" }
 array_t = { "[" ~ base_type ~ "]" }
 tuple_t = { "(" ~ base_type ~ ")" }

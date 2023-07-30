@@ -1,22 +1,35 @@
 use std::path::PathBuf;
 
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use miette::Result;
 #[derive(Parser, Clone)]
 #[command(author, version, about, long_about = None)]
 pub struct Args {
-source_file: PathBuf,
+    #[command(subcommand)]
+    command: Commands,
+}
+
+#[derive(Subcommand, Clone)]
+pub enum Commands {
+    Run {
+        source_file: PathBuf,
+    }
 }
 
 fn main() -> Result<()> {
     let args = Args::parse();
-    let Ok(source) = std::fs::read_to_string(args.source_file.clone()) else {
-        panic!("{}", miette::miette!("Could not read source file"))
-    };
 
-   let ast = easl::parse(&source).unwrap();
-
-    println!("{:#?}", ast);
+    match args.command {
+        Commands::Run { source_file } => {
+            let Ok(source) = std::fs::read_to_string(source_file) else {
+                panic!("{}", miette::miette!("Could not read source file"))
+            };
+        
+            let ast = easl::parse(&source).unwrap();
+        
+            println!("{:#?}", ast);
+        }
+    }
 
     Ok(())
 }
