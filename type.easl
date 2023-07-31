@@ -1,3 +1,2 @@
--- fun comments
-easl :: Color -> Color
-easl  = if (True) then (hsv 1 1 1) else (rgb 1 1 1)
+string_fn :: String -> Int
+string_fn str = rgb 1.0 1.0 1.0

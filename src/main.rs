@@ -1,7 +1,8 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
-use miette::Result;
+use miette::{Result, IntoDiagnostic};
+use thiserror::__private::AsDynError;
 #[derive(Parser, Clone)]
 #[command(author, version, about, long_about = None)]
 pub struct Args {
@@ -22,10 +23,13 @@ fn main() -> Result<()> {
     match args.command {
         Commands::Run { source_file } => {
             let Ok(source) = std::fs::read_to_string(source_file) else {
-                panic!("{}", miette::miette!("Could not read source file"))
+                return Err(miette::miette!("Could not read source file"));
             };
         
-            let ast = easl::parse(&source).unwrap();
+            let ast = match easl::parse(&source) {
+                Ok(ast) => ast,
+                Err(err) => { return Err(miette::miette!(err.to_string())) }
+            };
         
             println!("{:#?}", ast);
         }

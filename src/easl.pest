@@ -3,47 +3,78 @@ COMMENT = _{ "--" ~ (!NEWLINE ~ ANY)* ~ NEWLINE? }
 
 file = { SOI ~ (statement | NEWLINE)* ~ EOI }
 
-ident = { ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "-" | "_")* }
+ident = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "-" | "_")* }
 
 // Statements
-statement = { (assignment | type_ascription /* TODO: add more statements */) ~ NEWLINE? }
-assignment = { ident ~ "=" ~ expression ~ type_annotation? }
-type_ascription = { ident ~ expression* ~ type_annotation }
+statement = { (assignment | type_ascription | include /* TODO: add more statements */) ~ NEWLINE? }
+assignment = { ident ~ expression* ~ "=" ~ expression ~ type_annotation? }
+type_ascription = { ident ~ type_annotation }
+include = { "include" ~ string_l }
 
 type_annotation = { "::" ~ type }
 
 // Expressions
-expression = { literal | if | function_call | grouping | ident }
-function_call = { ident ~ expression* }
-if = { "if" ~ expression ~ "then" ~ expression ~ "else" ~ expression }
+// types:  if, function_call, comparison, term, factor, unary, primary
+expression = { if }
+
+if = { ("if" ~ if ~ "then" ~ if ~ "else" ~ if) | function_call }
+
+function_call = { (ident ~ comparison*) | comparison }
+
+comparison = { term ~ (comparison_op ~ term)* }
+comparison_op = !{ equivalent | not_equivalent | greater_than | less_than | greater_than_or_eq | less_than_or_eq }
+equivalent = { "==" }
+not_equivalent = { "!=" }
+greater_than = { ">" }
+less_than = { "<" }
+greater_than_or_eq = { ">=" }
+less_than_or_eq = { "<=" }
+
+term = { factor ~ (term_op ~ factor)* }
+term_op = !{ add | sub }
+add = { "+" }
+sub = { "-" }
+
+factor = { unary ~ (factor_op ~ unary)* }
+factor_op = { mul | div }
+mul = { "*" }
+div = { "/" }
+
+unary = { (unary_op ~ primary) | primary }
+unary_op = { not | negate }
+not = { "!" }
+negate = { "~" }
+
+primary = { literal | grouping | ident }
+
 grouping = { "(" ~ expression ~ ")" }
 
 // Literals
 literal = { int_l | bool_l | string_l | color_l }
 
 string_l = { "\"" ~ ANY* ~ "\"" }
-bool_l = { true | false }
+
+bool_l = !{ true | false }
 true = { ^"True" }
 false = { ^"False" }
 
-int_l = @{ ("0x" ~ hex) | ( "0b" ~ binary) | decimal | float }
-hex = { (ASCII_HEX_DIGIT | "_")+ }
-binary = { ("0" | "1" | "_")+ }
-decimal = { ('0'..'9')+ }
-float = { decimal ~ "." ~ decimal }
+int_l = { ("0x" ~ hex_int) | ( "0b" ~ binary_int) | decimal_int }
+hex_int = @{ (ASCII_HEX_DIGIT | "_")+ }
+binary_int = @{ ("0" | "1" | "_")+ }
+decimal_int = @{ ('0'..'9')+ ~ ( "." ~ ('0'..'9')+)? }
 
-color_l = { "#" ~ (ASCII_HEX_DIGIT{3} | ASCII_HEX_DIGIT{6}) }
+color_l = { "#" ~ (ASCII_HEX_DIGIT{3} | ASCII_HEX_DIGIT{6} | ASCII_HEX_DIGIT{8}) }
 
 // Types
 type = { fun_t | base_type }
 
 fun_t = { base_type ~ "->" ~ type }
 
-base_type = @{ string_t | int_t | color_t | bool_t | unit_t | array_t | tuple_t }
+base_type = !{ string_t | int_t | color_t | bool_t | unit_t | array_t | tuple_t }
 string_t = { ^"String" }
 int_t = { ^"Int" }
 color_t = { ^"Color" }
 bool_t = { ^"Bool" }
 unit_t = { "()" }
 array_t = { "[" ~ base_type ~ "]" }
-tuple_t = { "(" ~ base_type ~ ")" }
+tuple_t = { "(" ~ base_type ~ ("," ~ base_type)* ~ ")" }
