@@ -91,7 +91,7 @@ pub enum Literal {
     String(String),
     Int(f64),
     Bool(bool),
-    Color(palette::Xyza),
+    Color(palette::Xyza<palette::white_point::D65, f64>),
 }
 
 #[derive(Debug)]

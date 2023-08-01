@@ -1,6 +1,7 @@
 pub mod ast;
 
-use palette::FromColor;
+use colorsys::Rgb;
+use palette::{FromColor, Xyza, alpha};
 use pest::{
     iterators::{Pair, Pairs},
     Parser,
@@ -200,115 +201,30 @@ fn build_node(pair: Pair<'_, Rule>) -> Node {
                 }
                 Rule::color_l => {
                     let color = literal.into_inner().next().unwrap().as_str();
-                    let color = match color.chars().collect::<Vec<char>>().into_iter().len() {
-                        3 => {
-                            let mut chars = color.chars();
-                            let r = chars.next().unwrap();
-                            let g = chars.next().unwrap();
-                            let b = chars.next().unwrap();
-                            palette::Xyza::from_color(palette::rgb::Srgb::new(
-                                u8::from_str_radix(&format!("{}{}", r, r), 16).unwrap() as f32,
-                                u8::from_str_radix(&format!("{}{}", g, g), 16).unwrap() as f32,
-                                u8::from_str_radix(&format!("{}{}", b, b), 16).unwrap() as f32,
-                            ))
-                        }
-                        6 => {
-                            let mut chars = color.chars();
-                            palette::Xyza::from_color(palette::rgb::Srgb::new(
-                                u8::from_str_radix(
-                                    &format!(
-                                        "{}",
-                                        chars
-                                            .next_chunk::<2>()
-                                            .unwrap()
-                                            .into_iter()
-                                            .collect::<String>()
-                                    ),
-                                    16,
-                                )
-                                .unwrap() as f32,
-                                u8::from_str_radix(
-                                    &format!(
-                                        "{}",
-                                        chars
-                                            .next_chunk::<2>()
-                                            .unwrap()
-                                            .into_iter()
-                                            .collect::<String>()
-                                    ),
-                                    16,
-                                )
-                                .unwrap() as f32,
-                                u8::from_str_radix(
-                                    &format!(
-                                        "{}",
-                                        chars
-                                            .next_chunk::<2>()
-                                            .unwrap()
-                                            .into_iter()
-                                            .collect::<String>()
-                                    ),
-                                    16,
-                                )
-                                .unwrap() as f32,
-                            ))
-                        }
+                    match color.len() {
+                        3 | 6 => {
+                            let color = colorsys::Rgb::from_hex_str(color).unwrap();
+                            let color = Xyza::from_color(palette::rgb::Srgb::new(
+                                color.red(),
+                                color.green(),
+                                color.blue(),
+                            ));
+                            Node::Primary(Primary::Literal(Literal::Color(color)))
+                        },
                         8 => {
-                            let mut chars = color.chars();
-                            palette::Xyza::from_color(palette::rgb::Srgba::new(
-                                u8::from_str_radix(
-                                    &format!(
-                                        "{}",
-                                        chars
-                                            .next_chunk::<2>()
-                                            .unwrap()
-                                            .into_iter()
-                                            .collect::<String>()
-                                    ),
-                                    16,
-                                )
-                                .unwrap() as f32,
-                                u8::from_str_radix(
-                                    &format!(
-                                        "{}",
-                                        chars
-                                            .next_chunk::<2>()
-                                            .unwrap()
-                                            .into_iter()
-                                            .collect::<String>()
-                                    ),
-                                    16,
-                                )
-                                .unwrap() as f32,
-                                u8::from_str_radix(
-                                    &format!(
-                                        "{}",
-                                        chars
-                                            .next_chunk::<2>()
-                                            .unwrap()
-                                            .into_iter()
-                                            .collect::<String>()
-                                    ),
-                                    16,
-                                )
-                                .unwrap() as f32,
-                                u8::from_str_radix(
-                                    &format!(
-                                        "{}",
-                                        chars
-                                            .next_chunk::<2>()
-                                            .unwrap()
-                                            .into_iter()
-                                            .collect::<String>()
-                                    ),
-                                    16,
-                                )
-                                .unwrap() as f32,
-                            ))
-                        }
+                            let alpha = u8::from_str_radix(&color[6..=8], 16).unwrap() as f64;
+                            let color = colorsys::Rgb::from_hex_str(&color[..=6]).unwrap();
+                            let color = Xyza::from_color(palette::rgb::Srgba::new(
+                                color.red(),
+                                color.green(),
+                                color.blue(),
+                                alpha,
+                            ));
+                            Node::Primary(Primary::Literal(Literal::Color(color)))
+                        },
                         _ => unreachable!(),
-                    };
-                    Node::Primary(Primary::Literal(Literal::Color(color)))
+                    }
+                    
                 },
                 _ => unreachable!(),
             }
