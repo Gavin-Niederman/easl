@@ -31,26 +31,28 @@ greater_than_or_eq = { ">=" }
 less_than_or_eq = { "<=" }
 
 term = { factor ~ (term_op ~ factor)* }
-term_op = !{ add | sub }
+term_op = { add | sub }
 add = { "+" }
 sub = { "-" }
 
 factor = { unary ~ (factor_op ~ unary)* }
-factor_op = { mul | div }
+factor_op = { mul | div | remainder }
 mul = { "*" }
 div = { "/" }
+remainder = { "%" }
 
-unary = { (unary_op ~ primary) | primary }
-unary_op = { not | negate }
+unary = !{ (unary_op ~ primary) | primary }
+unary_op = { not | negate | negative }
 not = { "!" }
 negate = { "~" }
+negative = { "-" }
 
 primary = { literal | grouping | ident }
 
 grouping = { "(" ~ expression ~ ")" }
 
 // Literals
-literal = { int_l | bool_l | string_l | color_l }
+literal = { int_l | bool_l | string_l | color_l | unit_l }
 
 string_l = { "\"" ~ ANY* ~ "\"" }
 
@@ -58,23 +60,24 @@ bool_l = !{ true | false }
 true = { ^"True" }
 false = { ^"False" }
 
-int_l = { ("0x" ~ hex_int) | ( "0b" ~ binary_int) | decimal_int }
+int_l = !{ ("0x" ~ hex_int) | ( "0b" ~ binary_int) | decimal_int }
 hex_int = @{ (ASCII_HEX_DIGIT | "_")+ }
 binary_int = @{ ("0" | "1" | "_")+ }
 decimal_int = @{ ('0'..'9')+ ~ ( "." ~ ('0'..'9')+)? }
 
 color_l = { "#" ~ (ASCII_HEX_DIGIT{3} | ASCII_HEX_DIGIT{6} | ASCII_HEX_DIGIT{8}) }
 
+unit_l = { "()" }
+
 // Types
 type = { fun_t | base_type }
 
 fun_t = { base_type ~ "->" ~ type }
 
-base_type = !{ string_t | int_t | color_t | bool_t | unit_t | array_t | tuple_t }
+base_type = !{ string_t | int_t | color_t | bool_t | unit_t | array_t}
 string_t = { ^"String" }
 int_t = { ^"Int" }
 color_t = { ^"Color" }
 bool_t = { ^"Bool" }
 unit_t = { "()" }
 array_t = { "[" ~ base_type ~ "]" }
-tuple_t = { "(" ~ base_type ~ ("," ~ base_type)* ~ ")" }

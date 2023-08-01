@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
-use miette::{Result, IntoDiagnostic};
+use miette::{IntoDiagnostic, Result};
 use thiserror::__private::AsDynError;
 #[derive(Parser, Clone)]
 #[command(author, version, about, long_about = None)]
@@ -12,9 +12,7 @@ pub struct Args {
 
 #[derive(Subcommand, Clone)]
 pub enum Commands {
-    Run {
-        source_file: PathBuf,
-    }
+    Run { source_file: PathBuf },
 }
 
 fn main() -> Result<()> {
@@ -25,12 +23,12 @@ fn main() -> Result<()> {
             let Ok(source) = std::fs::read_to_string(source_file) else {
                 return Err(miette::miette!("Could not read source file"));
             };
-        
-            let ast = match easl::parse(&source) {
+
+            let ast = match easl::parser::parse(&source) {
                 Ok(ast) => ast,
-                Err(err) => { return Err(miette::miette!(err.to_string())) }
+                Err(err) => return Err(miette::miette!(err.to_string())),
             };
-        
+
             println!("{:#?}", ast);
         }
     }
