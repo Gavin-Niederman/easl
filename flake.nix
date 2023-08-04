@@ -3,7 +3,8 @@
     devShells.x86_64-linux.default = pkgs.mkShell {
       buildInputs = with pkgs; [
         pkgconfig
-        lldb
+        gdb
+        lldb_9
       ];
 
       LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";

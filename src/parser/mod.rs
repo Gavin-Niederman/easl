@@ -1,7 +1,6 @@
 pub mod ast;
 
-use colorsys::Rgb;
-use palette::{FromColor, Xyza, alpha};
+// use palette::{FromColor, Xyza};
 use pest::{
     iterators::{Pair, Pairs},
     Parser,
@@ -15,7 +14,7 @@ use crate::parser::ast::{Literal, Primary};
 use self::ast::Type;
 
 #[derive(Parser)]
-#[grammar = "easl.pest"]
+#[grammar = "parser/easl.pest"]
 pub struct EaslParser;
 
 pub fn parse(source: &str) -> Result<Vec<Statement>, pest::error::Error<Rule>> {
@@ -29,223 +28,161 @@ pub fn parse(source: &str) -> Result<Vec<Statement>, pest::error::Error<Rule>> {
 }
 
 fn build_ast(mut pairs: Pairs<'_, Rule>) -> Vec<Statement> {
-    let mut statements = Vec::new();
+    let mut ast = Vec::new();
 
     let Some(file) = pairs.next() else {
-        return statements;
+        return ast;
     };
-    let statement_pairs = file.into_inner();
+    let statements = file.into_inner();
 
-    for statement in statement_pairs {
-        statements.push(build_statement(statement));
-        println!("{:#?}", statements.last().unwrap());
+    for statement in statements {
+        ast.push(build_statement(statement));
     }
 
-    statements
+    ast
 }
 
 fn build_statement(pair: Pair<'_, Rule>) -> Statement {
+    let mut inner = pair.clone().into_inner();
     match pair.as_rule() {
-        Rule::statement => build_statement(pair.into_inner().next().unwrap()),
+        Rule::statement => build_statement(inner.next().unwrap()),
         Rule::assignment => {
-            let mut inner = pair.into_inner();
-            let mut inner_expressions: Vec<Node> = inner.clone().filter(|e| e.as_rule() == Rule::expression).map(|e| build_node(e)).collect();
             let ident = inner.next().unwrap().as_str().to_string();
-            let expr = inner_expressions.pop().unwrap();
-            let args = inner_expressions;
-            let type_ = match inner.last() {
-                Some(type_) => {
-                    Some(build_type(type_))
-                },
-                None => None,
-            };
+            let expr = build_node(inner.next().unwrap());
 
-            Statement::Assignment { ident, args, expr, type_ }
-        },
+            Statement::Assignment { ident, expr }
+        }
         Rule::type_ascription => {
             let mut inner = pair.into_inner();
             let ident = inner.next().unwrap().as_str().to_string();
             let type_ = build_type(inner.next().unwrap());
             Statement::TypeAscription { ident, type_ }
+        }
+        Rule::include => Statement::Include {
+            source: pair.into_inner().next().unwrap().as_str().to_string(),
         },
-        Rule::include => {
-            Statement::Include { source: pair.into_inner().next().unwrap().as_str().to_string() }
-        },
-        _ => { unreachable!() }
+        Rule::EOI => Statement::EOI,
+        _ => {
+            unreachable!()
+        }
     }
 }
 
 fn build_node(pair: Pair<'_, Rule>) -> Node {
-    macro_rules! boxed_next {
-        ($ident:ident) => {
-            Box::new(build_node($ident.next().unwrap()))
-        };
+    let mut inner = pair.clone().into_inner();
+    macro_rules! unless_single_inner {
+        ($block:block) => {
+            if inner.len() == 1 {
+                return build_node(inner.next().unwrap());
+            } else $block
+        }
     }
 
-    let mut inner = pair.clone().into_inner();
-
     match pair.as_rule() {
-        Rule::r#if => Node::If {
-            cond: boxed_next!(inner),
-            then: boxed_next!(inner),
-            else_: boxed_next!(inner),
-        },
-        Rule::function_call => {
-            let mut fn_call_inner = pair.into_inner();
-            if fn_call_inner.len() == 1 {
-                let next = fn_call_inner.next().unwrap();
-                match next.as_rule() {
-                    Rule::ident => Node::FunctionCall {
-                        ident: next.as_str().to_string(),
-                        args: vec![],
-                    },
-                    Rule::comparison => build_node(fn_call_inner.next().unwrap()),
-                    _ => {
-                        unreachable!()
-                    }
-                }
-            } else {
-                Node::FunctionCall {
-                    ident: fn_call_inner.next().unwrap().as_str().to_string(),
-                    args: fn_call_inner.map(|pair| build_node(pair)).collect(),
-                }
-            }
-        }
-        Rule::comparison => {
-            if inner.len() == 1 {
-                build_node(inner.next().unwrap())
-            } else {
-                let lhs = boxed_next!(inner);
-                let operator = match inner.next().unwrap().into_inner().next().unwrap().as_rule() {
-                    Rule::equivalent => ComparisonOperator::Equivalent,
-                    Rule::not_equivalent => ComparisonOperator::NotEquivalent,
-                    Rule::greater_than => ComparisonOperator::GreaterThan,
-                    Rule::less_than => ComparisonOperator::LessThan,
-                    Rule::greater_than_or_eq => ComparisonOperator::GreaterThanOrEqual,
-                    Rule::less_than_or_eq => ComparisonOperator::LessThanOrEqual,
-                    _ => unreachable!(),
-                };
-                let rhs = boxed_next!(inner);
-                Node::Comparison { operator, lhs, rhs }
-            }
-        }
-        Rule::term => {
-            if inner.len() == 1 {
-                build_node(inner.next().unwrap())
-            } else {
-                let lhs = boxed_next!(inner);
-                let operator = match inner.next().unwrap().into_inner().next().unwrap().as_rule() {
-                    Rule::add => TermOperator::Add,
-                    Rule::sub => TermOperator::Sub,
-                    _ => unreachable!(),
-                };
-                let rhs = boxed_next!(inner);
-                Node::Term { operator, lhs, rhs }
-            }
-        }
-        Rule::factor => {
-            if inner.len() == 1 {
-                build_node(inner.next().unwrap())
-            } else {
-                let lhs = boxed_next!(inner);
-                let operator = match inner.next().unwrap().into_inner().next().unwrap().as_rule() {
-                    Rule::mul => FactorOperator::Mul,
-                    Rule::div => FactorOperator::Div,
-                    _ => unreachable!(),
-                };
-                let rhs = boxed_next!(inner);
-                Node::Factor { operator, lhs, rhs }
-            }
-        }
-        Rule::unary => {
-            if inner.len() == 1 {
-                build_node(inner.next().unwrap())
-            } else {
-                let operator = match inner.next().unwrap().into_inner().next().unwrap().as_rule() {
-                    Rule::not => UnaryOperator::Not,
-                    Rule::negate => UnaryOperator::Negate,
-                    Rule::negative => UnaryOperator::Negative,
-                    _ => unreachable!(),
-                };
-                let expr = boxed_next!(inner);
+        Rule::expression => build_node(inner.next().unwrap()),
 
-                Node::Unary { operator, expr }
-            }
-        }
+        Rule::lambda => unless_single_inner!({
+            let param = inner.next().unwrap().as_str().to_string();
+            let body = Box::new(build_node(inner.next().unwrap()));
+            Node::Lambda { param, body }
+        }),
+
+        Rule::r#if => unless_single_inner!({
+            let cond = Box::new(build_node(inner.next().unwrap()));
+            let then = Box::new(build_node(inner.next().unwrap()));
+            let else_ = Box::new(build_node(inner.next().unwrap()));
+            Node::If { cond, then, else_ }
+        }),
+        Rule::function_call => unless_single_inner!({
+            let callee = Box::new(build_node(inner.next().unwrap()));
+            let param = Box::new(build_node(inner.next().unwrap()));
+            Node::FunctionCall { callee, param }
+        }),
+        Rule::comparison => unless_single_inner!({
+            let lhs = Box::new(build_node(inner.next().unwrap()));
+            let operator = match inner.next().unwrap().as_rule() {
+                Rule::equivalent => ComparisonOperator::Equivalent,
+                Rule::not_equivalent => ComparisonOperator::NotEquivalent,
+                Rule::greater_than => ComparisonOperator::GreaterThan,
+                Rule::less_than => ComparisonOperator::LessThan,
+                Rule::greater_than_or_eq => ComparisonOperator::GreaterThanOrEqual,
+                Rule::less_than_or_eq => ComparisonOperator::LessThanOrEqual,
+                _ => unreachable!(),
+            };
+            let rhs = Box::new(build_node(inner.next().unwrap()));
+            Node::Comparison { operator, lhs, rhs }
+        }),
+        Rule::term => unless_single_inner!({
+            let lhs = Box::new(build_node(inner.next().unwrap()));
+            let operator = match inner.next().unwrap().as_rule() {
+                Rule::add => TermOperator::Add,
+                Rule::sub => TermOperator::Sub,
+                _ => unreachable!(),
+            };
+            let rhs = Box::new(build_node(inner.next().unwrap()));
+            Node::Term { operator, lhs, rhs }
+        }),
+        Rule::factor => unless_single_inner!({
+            let lhs = Box::new(build_node(inner.next().unwrap()));
+            let operator = match inner.next().unwrap().as_rule() {
+                Rule::mul => FactorOperator::Mul,
+                Rule::div => FactorOperator::Div,
+                _ => unreachable!(),
+            };
+            let rhs = Box::new(build_node(inner.next().unwrap()));
+            Node::Factor { operator, lhs, rhs }
+        }),
+        Rule::unary => unless_single_inner!({
+            let operator = match inner.next().unwrap().as_rule() {
+                Rule::not => UnaryOperator::Not,
+                Rule::negate => UnaryOperator::Negate,
+                Rule::negative => UnaryOperator::Negative,
+                _ => unreachable!(),
+            };
+            let rhs = Box::new(build_node(inner.next().unwrap()));
+            Node::Unary { operator, rhs }
+        }),
         Rule::primary => build_node(inner.next().unwrap()),
         Rule::grouping => build_node(inner.next().unwrap()),
-        Rule::ident => Node::Primary(Primary::Ident(inner.as_str().to_string())),
-        Rule::literal => {
-            let literal = inner.next().unwrap();
-            match literal.as_rule() {
-                Rule::string_l => Node::Primary(Primary::Literal(Literal::String(
-                    literal.into_inner().next().unwrap().as_str().to_string(),
-                ))),
-                Rule::bool_l => Node::Primary(Primary::Literal(Literal::Bool(
-                    match inner.next().unwrap().into_inner().next().unwrap().as_rule() {
-                        Rule::r#true => true,
-                        Rule::r#false => false,
-                        _ => unreachable!(),
-                    },
-                ))),
-                Rule::int_l => {
-                    let int_type = inner.next().unwrap().into_inner().next().unwrap();
-                    Node::Primary(Primary::Literal(Literal::Int(match int_type.as_rule() {
-                        Rule::decimal_int => int_type.as_str().parse::<f64>().unwrap(),
-                        Rule::hex_int => i64::from_str_radix(int_type.as_str(), 16).unwrap() as f64,
-                        Rule::binary_int => {
-                            i64::from_str_radix(int_type.as_str(), 2).unwrap() as f64
-                        }
-                        _ => unreachable!(),
-                    })))
-                }
-                Rule::color_l => {
-                    let color = literal.into_inner().next().unwrap().as_str();
-                    match color.len() {
-                        3 | 6 => {
-                            let color = colorsys::Rgb::from_hex_str(color).unwrap();
-                            let color = Xyza::from_color(palette::rgb::Srgb::new(
-                                color.red(),
-                                color.green(),
-                                color.blue(),
-                            ));
-                            Node::Primary(Primary::Literal(Literal::Color(color)))
-                        },
-                        8 => {
-                            let alpha = u8::from_str_radix(&color[6..=8], 16).unwrap() as f64;
-                            let color = colorsys::Rgb::from_hex_str(&color[..=6]).unwrap();
-                            let color = Xyza::from_color(palette::rgb::Srgba::new(
-                                color.red(),
-                                color.green(),
-                                color.blue(),
-                                alpha,
-                            ));
-                            Node::Primary(Primary::Literal(Literal::Color(color)))
-                        },
-                        _ => unreachable!(),
-                    }
-                    
-                },
+        Rule::literal => build_node(inner.next().unwrap()),
+        Rule::ident => Node::Primary(Primary::Ident(pair.as_str().to_string())),
+
+        //TODO: remove quotes
+        Rule::string_l => {
+            Node::Primary(Primary::Literal(Literal::String(pair.as_str().to_string())))
+        }
+        Rule::bool_l => Node::Primary(Primary::Literal(Literal::Bool(
+            match inner.next().unwrap().as_rule() {
+                Rule::r#true => true,
+                Rule::r#false => false,
                 _ => unreachable!(),
-            }
-        },
+            },
+        ))),
+        Rule::int_l => Node::Primary(Primary::Literal(Literal::Int(
+            match inner.next().unwrap().as_rule() {
+                Rule::hex_int => {
+                    i64::from_str_radix(pair.as_str(), 16).unwrap() as f64
+                }
+                Rule::binary_int => {
+                    i64::from_str_radix(pair.as_str(), 2).unwrap() as f64
+                }
+                Rule::decimal_int => pair.as_str().parse::<f64>().unwrap(),
+                _ => unreachable!(),
+            },
+        ))),
+        Rule::unit_l => Node::Primary(Primary::Literal(Literal::Unit)),
+        // Rule::color_l => ,
         _ => unreachable!(),
     }
 }
 
 fn build_type(pair: Pair<'_, Rule>) -> Type {
-    println!("{:#?}", pair.as_rule());
-    let mut type_type = pair.into_inner().next().unwrap();
-    println!("{:#?}", type_type);
-    match type_type.as_rule() {
-        Rule::r#type => {
-            build_type(type_type.into_inner().next().unwrap())
-        }
-        Rule::base_type => {
-            build_type(type_type.into_inner().next().unwrap())
-        }
+    let mut inner = pair.clone().into_inner();
+    match pair.as_rule() {
+        Rule::type_annotation => build_type(inner.next().unwrap()),
+        Rule::r#type => build_type(inner.next().unwrap()),
+        Rule::base_type => build_type(inner.next().unwrap()),
         Rule::fun_t => {
-            let mut inner = type_type.into_inner();
             let input = Box::new(build_type(inner.next().unwrap()));
             let output = Box::new(build_type(inner.next().unwrap()));
             Type::Fun { input, output }
@@ -255,11 +192,7 @@ fn build_type(pair: Pair<'_, Rule>) -> Type {
         Rule::color_t => Type::Color,
         Rule::bool_t => Type::Bool,
         Rule::unit_t => Type::Unit,
-        Rule::array_t => {
-            Type::Array(Box::new(
-                build_type(type_type.into_inner().next().unwrap())
-            ))
-        }
+        Rule::array_t => Type::Array(Box::new(build_type(inner.next().unwrap()))),
         _ => unreachable!(),
     }
 }

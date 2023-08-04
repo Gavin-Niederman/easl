@@ -1,10 +1,12 @@
+//TODO: Add more
 #[derive(Debug)]
 pub enum Statement {
+    //TODO: Syntax for patern matching, in place type ascription, and parameters
     Assignment {
         ident: String,
-        args: Vec<Node>,
+        // args: Vec<Node>,
         expr: Node,
-        type_: Option<Type>,
+        // type_: Option<Type>,
     },
     TypeAscription {
         ident: String,
@@ -12,19 +14,25 @@ pub enum Statement {
     },
     Include {
         source: String,
-    }, //TODO: Add more
+    },
+    EOI,
 }
 
+//TODO: Add more
 #[derive(Debug)]
 pub enum Node {
+    Lambda {
+        param: String,
+        body: Box<Node>,
+    },
     If {
         cond: Box<Node>,
         then: Box<Node>,
         else_: Box<Node>,
     },
     FunctionCall {
-        ident: String,
-        args: Vec<Node>,
+        callee: Box<Node>,
+        param: Box<Node>,
     },
     Comparison {
         operator: ComparisonOperator,
@@ -43,10 +51,9 @@ pub enum Node {
     },
     Unary {
         operator: UnaryOperator,
-        expr: Box<Node>,
+        rhs: Box<Node>,
     },
     Primary(Primary),
-    //TODO: Add more
 }
 
 #[derive(Debug)]
@@ -92,6 +99,7 @@ pub enum Literal {
     Int(f64),
     Bool(bool),
     Color(palette::Xyza<palette::white_point::D65, f64>),
+    Unit,
 }
 
 #[derive(Debug)]

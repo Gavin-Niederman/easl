@@ -5,62 +5,23 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "type": "lldb",
+            "type": "lldb-mi",
             "request": "launch",
-            "name": "Debug unit tests in library 'easl'",
-            "cargo": {
-                "args": [
-                    "test",
-                    "--no-run",
-                    "--lib",
-                    "--package=easl"
-                ],
-                "filter": {
-                    "name": "easl",
-                    "kind": "lib"
-                }
-            },
-            "args": [],
-            "cwd": "${workspaceFolder}"
+            "name": "Launch Program lldb",
+            "target": "./target/debug/easl",
+            "arguments": "run syntax.easl",
+            "cwd": "${workspaceRoot}",
+            "valuesFormatting": "parseText"
         },
         {
-            "type": "lldb",
+            "type": "gdb",
             "request": "launch",
-            "name": "Debug executable 'easl'",
-            "cargo": {
-                "args": [
-                    "build",
-                    "--bin=easl",
-                    "--package=easl",
-                ],
-                "filter": {
-                    "name": "easl",
-                    "kind": "bin"
-                }
-            },
-            "args": [
-                "syntax.easl"
-            ],
-            "cwd": "${workspaceFolder}"
-        },
-        {
-            "type": "lldb",
-            "request": "launch",
-            "name": "Debug unit tests in executable 'easl'",
-            "cargo": {
-                "args": [
-                    "test",
-                    "--no-run",
-                    "--bin=easl",
-                    "--package=easl"
-                ],
-                "filter": {
-                    "name": "easl",
-                    "kind": "bin"
-                }
-            },
-            "args": [],
-            "cwd": "${workspaceFolder}"
+            "name": "Launch Program",
+            "target": "./target/debug/easl",
+            "arguments": "run syntax.easl",
+            "cwd": "${workspaceRoot}",
+            "valuesFormatting": "parseText"
         }
+        
     ]
 }

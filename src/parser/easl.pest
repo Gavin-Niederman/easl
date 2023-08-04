@@ -7,7 +7,7 @@ ident = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "-" | "_")* }
 
 // Statements
 statement = { (assignment | type_ascription | include /* TODO: add more statements */) ~ NEWLINE? }
-assignment = { ident ~ expression* ~ "=" ~ expression ~ type_annotation? }
+assignment = { ident /* ~ expression* */ ~ "=" ~ expression /* ~ type_annotation? */ }
 type_ascription = { ident ~ type_annotation }
 include = { "include" ~ string_l }
 
@@ -15,11 +15,13 @@ type_annotation = { "::" ~ type }
 
 // Expressions
 // types:  if, function_call, comparison, term, factor, unary, primary
-expression = { if }
+expression = { lambda }
+
+lambda = { "\\" ~ ident ~ "->" ~ if | if }
 
 if = { ("if" ~ if ~ "then" ~ if ~ "else" ~ if) | function_call }
 
-function_call = { (ident ~ comparison*) | comparison }
+function_call = { (comparison ~ comparison) | comparison }
 
 comparison = { term ~ (comparison_op ~ term)* }
 comparison_op = !{ equivalent | not_equivalent | greater_than | less_than | greater_than_or_eq | less_than_or_eq }
@@ -52,7 +54,7 @@ primary = { literal | grouping | ident }
 grouping = { "(" ~ expression ~ ")" }
 
 // Literals
-literal = { int_l | bool_l | string_l | color_l | unit_l }
+literal = { int_l | bool_l | string_l | unit_l /* | color_l */ }
 
 string_l = { "\"" ~ ANY* ~ "\"" }
 
@@ -65,7 +67,7 @@ hex_int = @{ (ASCII_HEX_DIGIT | "_")+ }
 binary_int = @{ ("0" | "1" | "_")+ }
 decimal_int = @{ ('0'..'9')+ ~ ( "." ~ ('0'..'9')+)? }
 
-color_l = { "#" ~ (ASCII_HEX_DIGIT{3} | ASCII_HEX_DIGIT{6} | ASCII_HEX_DIGIT{8}) }
+// color_l = { "#" ~ (ASCII_HEX_DIGIT{3} | ASCII_HEX_DIGIT{6} | ASCII_HEX_DIGIT{8}) }
 
 unit_l = { "()" }
 
