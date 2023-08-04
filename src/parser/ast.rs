@@ -30,9 +30,9 @@ pub enum Node {
         then: Box<Node>,
         else_: Box<Node>,
     },
-    FunctionCall {
-        callee: Box<Node>,
-        param: Box<Node>,
+    FunctionApplication {
+        function: Box<Node>,
+        argument: Box<Node>,
     },
     Comparison {
         operator: ComparisonOperator,

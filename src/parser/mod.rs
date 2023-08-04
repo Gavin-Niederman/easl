@@ -93,10 +93,10 @@ fn build_node(pair: Pair<'_, Rule>) -> Node {
             let else_ = Box::new(build_node(inner.next().unwrap()));
             Node::If { cond, then, else_ }
         }),
-        Rule::function_call => unless_single_inner!({
-            let callee = Box::new(build_node(inner.next().unwrap()));
-            let param = Box::new(build_node(inner.next().unwrap()));
-            Node::FunctionCall { callee, param }
+        Rule::function_application => unless_single_inner!({
+            let function = Box::new(build_node(inner.next().unwrap()));
+            let argument = Box::new(build_node(inner.next().unwrap()));
+            Node::FunctionApplication { function, argument }
         }),
         Rule::comparison => unless_single_inner!({
             let lhs = Box::new(build_node(inner.next().unwrap()));

@@ -14,14 +14,14 @@ include = { "include" ~ string_l }
 type_annotation = { "::" ~ type }
 
 // Expressions
-// types:  if, function_call, comparison, term, factor, unary, primary
+// types:  if, function_application, comparison, term, factor, unary, primary
 expression = { lambda }
 
 lambda = { "\\" ~ ident ~ "->" ~ if | if }
 
-if = { ("if" ~ if ~ "then" ~ if ~ "else" ~ if) | function_call }
+if = { ("if" ~ if ~ "then" ~ if ~ "else" ~ if) | function_application }
 
-function_call = { (comparison ~ comparison) | comparison }
+function_application = { (comparison ~ comparison) | comparison }
 
 comparison = { term ~ (comparison_op ~ term)* }
 comparison_op = !{ equivalent | not_equivalent | greater_than | less_than | greater_than_or_eq | less_than_or_eq }
