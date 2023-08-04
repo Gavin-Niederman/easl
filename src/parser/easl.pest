@@ -19,9 +19,7 @@ expression = { lambda }
 
 lambda = { "\\" ~ ident ~ "->" ~ if | if }
 
-if = { ("if" ~ if ~ "then" ~ if ~ "else" ~ if) | function_application }
-
-function_application = { (comparison ~ comparison) | comparison }
+if = { ("if" ~ if ~ "then" ~ if ~ "else" ~ if) | comparison }
 
 comparison = { term ~ (comparison_op ~ term)* }
 comparison_op = !{ equivalent | not_equivalent | greater_than | less_than | greater_than_or_eq | less_than_or_eq }
@@ -43,11 +41,13 @@ mul = { "*" }
 div = { "/" }
 remainder = { "%" }
 
-unary = !{ (unary_op ~ primary) | primary }
+unary = !{ (unary_op ~ function_application) | function_application }
 unary_op = { not | negate | negative }
 not = { "!" }
 negate = { "~" }
 negative = { "-" }
+
+function_application = { (primary ~ primary) | primary }
 
 primary = { literal | grouping | ident }
 
