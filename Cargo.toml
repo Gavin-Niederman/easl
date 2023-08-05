@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4.3.0", features = ["derive"] }
+inkwell = { version = "0.2.0", features = ["llvm11-0"] }
 lazy_static = "1.4.0"
 miette = { version = "5.9.0", features = ["fancy"] }
 palette = "0.7.2"

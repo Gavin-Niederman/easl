@@ -5,6 +5,7 @@
         pkgconfig
         gdb
         lldb_9
+        llvm
       ];
 
       LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
