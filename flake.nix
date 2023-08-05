@@ -10,5 +10,8 @@
 
       LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
     };
+
+    overlay = overlays.default;
+    overlays.default = final: _: easl = import ./default.nix { pkgs = final; };
   };
 }

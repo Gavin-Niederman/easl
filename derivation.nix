@@ -6,10 +6,10 @@ rustPlatform.buildRustPackage {
 
     src = fetchgit {
         url = "https://github.com/Gavin-Niederman/easl";
-        sha256 = "sha256-Z3SjAlSALL399LWdwMP4rX20N9pFYGMSBf4KfcLJZpE=";
+        sha256 = "sha256-7SupDDy8xWPdylMwYuFZy3iCdQ9E3E46PvxyKG4uEE8=";
     };
 
-    cargoHash = "sha256-kgph+nh0Wva0uJJl0921MAlUugEcXLhqwDTkDfY/5nk=";
+    cargoHash = "sha256-1eWdRy5rP7S9lAiDS61WviHMvFDNu4zKhScGP1JYJmk=";
 
     meta = with lib; {
         description = "A haskell-like shader language for RGB strips";

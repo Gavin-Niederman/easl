@@ -1,4 +1,6 @@
 /target
+/result
+
 /.direnv
 /Cargo.lock
 /flake.lock
