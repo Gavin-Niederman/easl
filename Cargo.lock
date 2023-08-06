@@ -90,7 +90,7 @@ dependencies = [
  "addr2line",
  "cc",
  "cfg-if",
- "libc",
+ "libc 0.2.147",
  "miniz_oxide",
  "object",
  "rustc-demangle",
@@ -126,7 +126,7 @@ version = "1.0.81"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6c6b2562119bf28c3439f7f02db99faf0aa1a8cdfe5772a2ee155d32227239f0"
 dependencies = [
- "libc",
+ "libc 0.2.147",
 ]
 
 [[package]]
@@ -188,7 +188,7 @@ version = "0.2.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a17b76ff3a4162b0b27f354a0c87015ddad39d35f9c0c36607a3bdd175dde1f1"
 dependencies = [
- "libc",
+ "libc 0.2.147",
 ]
 
 [[package]]
@@ -216,6 +216,7 @@ name = "easl"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "gccjit",
  "lazy_static",
  "miette",
  "palette",
@@ -231,7 +232,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6b30f669a7961ef1631673d2766cc92f52d64f7ef354d4fe0ddfd30ed52f0f4f"
 dependencies = [
  "errno-dragonfly",
- "libc",
+ "libc 0.2.147",
  "windows-sys",
 ]
 
@@ -242,7 +243,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "aa68f1b12764fab894d2755d2518754e71b4fd80ecfb822714a1206c2aab39bf"
 dependencies = [
  "cc",
- "libc",
+ "libc 0.2.147",
 ]
 
 [[package]]
@@ -250,6 +251,24 @@ name = "fast-srgb8"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dd2e7510819d6fbf51a5545c8f922716ecfb14df168a3242f7d33e0239efe6a1"
+
+[[package]]
+name = "gccjit"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "41f644d8e82b96754cf5093760ab95d10deb55c56829eefd7b3669793d9b57dc"
+dependencies = [
+ "gccjit_sys",
+]
+
+[[package]]
+name = "gccjit_sys"
+version = "0.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0f79f2e9c27c5ad4eef4a4769dac2563613a70d7a3b3475184ba4d996877a291"
+dependencies = [
+ "libc 0.1.12",
+]
 
 [[package]]
 name = "generic-array"
@@ -301,6 +320,12 @@ name = "lazy_static"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
+
+[[package]]
+name = "libc"
+version = "0.1.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e32a70cf75e5846d53a673923498228bbec6a8624708a9ea5645f075d6276122"
 
 [[package]]
 name = "libc"
@@ -547,7 +572,7 @@ checksum = "1ee020b1716f0a80e2ace9b03441a749e402e86712f15f16fe8a8f75afac732f"
 dependencies = [
  "bitflags",
  "errno",
- "libc",
+ "libc 0.2.147",
  "linux-raw-sys",
  "windows-sys",
 ]
@@ -626,7 +651,7 @@ version = "0.1.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "633c1a546cee861a1a6d0dc69ebeca693bf4296661ba7852b9d21d159e0506df"
 dependencies = [
- "libc",
+ "libc 0.2.147",
  "winapi",
 ]
 

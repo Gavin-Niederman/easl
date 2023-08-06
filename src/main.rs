@@ -1,8 +1,7 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
-use miette::{IntoDiagnostic, Result};
-use thiserror::__private::AsDynError;
+use miette::Result;
 #[derive(Parser, Clone)]
 #[command(author, version, about, long_about = None)]
 pub struct Args {
