@@ -2,7 +2,7 @@ use proc_macro::TokenStream;
 use syn::ItemFn;
 
 #[proc_macro_attribute]
-pub fn passthrough_parse_visit(_attr: TokenStream, input: TokenStream) -> TokenStream {
+pub fn with_inner_passthrough(_attr: TokenStream, input: TokenStream) -> TokenStream {
     let ItemFn { attrs, vis, sig, block } = syn::parse_macro_input!(input as ItemFn);
     quote::quote!(
         #(#attrs)* #vis #sig {
@@ -15,7 +15,7 @@ pub fn passthrough_parse_visit(_attr: TokenStream, input: TokenStream) -> TokenS
 }
 
 #[proc_macro_attribute]
-pub fn parse_visit(_attr: TokenStream, input: TokenStream) -> TokenStream {
+pub fn with_inner(_attr: TokenStream, input: TokenStream) -> TokenStream {
     let ItemFn { attrs, vis, sig, block } = syn::parse_macro_input!(input as ItemFn);
     let stmts = &block.stmts;
     quote::quote!(

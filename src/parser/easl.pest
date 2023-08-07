@@ -15,9 +15,7 @@ type_annotation = { "::" ~ type }
 
 // Expressions
 // types:  if, function_application, comparison, term, factor, unary, primary
-expression = { lambda }
-
-lambda = { "\\" ~ ident ~ "->" ~ if | if }
+expression = { if }
 
 if = { ("if" ~ if ~ "then" ~ if ~ "else" ~ if) | comparison }
 
@@ -49,7 +47,9 @@ negative = { "-" }
 
 function_application = { (primary ~ primary) | primary }
 
-primary = { literal | grouping | ident }
+primary = { lambda }
+
+lambda = { ("\\" ~ ident ~ "->" ~ primary) | (literal | grouping | ident) }
 
 grouping = { "(" ~ expression ~ ")" }
 

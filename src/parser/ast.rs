@@ -1,12 +1,10 @@
-
-//TODO: Add more
 #[derive(Debug)]
-pub enum Node {
+pub enum Statement {
     //TODO: Syntax for patern matching, in place type ascription, and parameters
     Assignment {
         ident: String,
         // args: Vec<Node>,
-        expr: Box<Node>,
+        expr: Node,
         // type_: Option<Type>,
     },
     TypeAscription {
@@ -15,12 +13,13 @@ pub enum Node {
     },
     Include {
         source: String,
-    },
-    
-    Lambda {
-        param: String,
-        body: Box<Node>,
-    },
+    },    
+    EOI,
+}
+
+//TODO: Add more
+#[derive(Debug)]
+pub enum Node {
     If {
         cond: Box<Node>,
         then: Box<Node>,
@@ -50,8 +49,6 @@ pub enum Node {
         rhs: Box<Node>,
     },
     Primary(Primary),
-    
-    EOI,
 }
 
 #[derive(Debug)]
@@ -86,6 +83,10 @@ pub enum UnaryOperator {
 
 #[derive(Debug)]
 pub enum Primary {
+    Lambda { 
+        param: String,
+        body: Box<Node>,
+    },
     Literal(Literal),
     Grouping { expr: Box<Node> },
     Ident(String),

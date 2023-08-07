@@ -2,7 +2,7 @@ pub mod ast;
 
 use std::marker::PhantomData;
 
-use easl_derive::{passthrough_parse_visit, parse_visit};
+use easl_derive::{with_inner, with_inner_passthrough};
 // use palette::{FromColor, Xyza};
 use pest::{
     iterators::{Pair, Pairs},
@@ -14,7 +14,7 @@ use ast::{ComparisonOperator, FactorOperator, Node, TermOperator, UnaryOperator}
 
 use crate::{parser::ast::{Literal, Primary}, visitor::Visitor};
 
-use self::ast::Type;
+use self::ast::{Type, Statement};
 
 
 #[derive(Parser)]
@@ -26,45 +26,11 @@ impl<'a> Visitor for EaslParser<'a> {
     type Input = Pair<'a, Rule>;
     type Output = Node;
 
-    #[parse_visit]
-    fn visit_statement(input: Self::Input) -> Self::Output {
-        println!("{:?}", input.as_rule());
-        match input.as_rule() {
-            Rule::statement => Self::visit_statement(inner.next().unwrap()),
-            Rule::assignment => Self::visit_assignment(input),
-            Rule::type_ascription => Self::visit_type_ascription(input),
-            Rule::include => Self::visit_include(input),
-            Rule::EOI => Self::visit_eoi(input),
-            _ => unreachable!(),
-        }
-    }
-
-    #[parse_visit]
-    fn visit_assignment(input: Self::Input) -> Self::Output {
-        let ident = inner.next().unwrap().as_str().to_string();
-        let expr = Box::new(Self::visit_expression(inner.next().unwrap()));
-
-        Node::Assignment { ident, expr }
-    }
-
-    #[parse_visit]
-    fn visit_type_ascription(input: Self::Input) -> Self::Output {
-        let ident = inner.next().unwrap().as_str().to_string();
-        let type_ = build_type(inner.next().unwrap());
-        Node::TypeAscription { ident, type_ }
-    }
-
-    #[parse_visit]
-    fn visit_include(input: Self::Input) -> Self::Output {
-        Node::Include { source: input.into_inner().next().unwrap().as_str().to_string() }
-    }
-
-    #[parse_visit]
+    #[with_inner]
     fn visit_expression(input: Self::Input) -> Self::Output {
         println!("{:?}", input.as_rule());
         match input.as_rule() {
             Rule::expression => Self::visit_expression(inner.next().unwrap()),
-            Rule::lambda => Self::visit_lambda(input),
             Rule::r#if => Self::visit_if(input),
             Rule::function_application => Self::visit_function_application(input),
             Rule::comparison => Self::visit_comparison(input),
@@ -76,17 +42,7 @@ impl<'a> Visitor for EaslParser<'a> {
         }
     }
 
-    #[passthrough_parse_visit]
-    fn visit_lambda(input: Self::Input) -> Self::Output {
-        let inner = input.into_inner();
-        let mut inner = inner.clone();
-        let param = inner.next().unwrap().as_str().to_string();
-        let body = Box::new(Self::visit_expression(inner.next().unwrap()));
-        Node::Lambda { param, body }
-        
-    }
-
-    #[passthrough_parse_visit]
+    #[with_inner_passthrough]
     fn visit_if(input: Self::Input) -> Self::Output {
             let cond = Box::new(Self::visit_expression(inner.next().unwrap()));
             let then = Box::new(Self::visit_expression(inner.next().unwrap()));
@@ -94,14 +50,14 @@ impl<'a> Visitor for EaslParser<'a> {
             Node::If { cond, then, else_ }
     }
 
-    #[passthrough_parse_visit]
+    #[with_inner_passthrough]
     fn visit_function_application(input: Self::Input) -> Self::Output {
             let function = Box::new(Self::visit_expression(inner.next().unwrap()));
             let argument = Box::new(Self::visit_expression(inner.next().unwrap()));
             Node::FunctionApplication { function, argument }
 
     }
-    #[passthrough_parse_visit]
+    #[with_inner_passthrough]
     fn visit_comparison(input: Self::Input) -> Self::Output {
             let lhs = Box::new(Self::visit_expression(inner.next().unwrap()));
             let operator = match inner.next().unwrap().as_rule() {
@@ -117,7 +73,7 @@ impl<'a> Visitor for EaslParser<'a> {
             Node::Comparison { lhs, operator, rhs }
     }
 
-    #[passthrough_parse_visit]
+    #[with_inner_passthrough]
     fn visit_term(input: Self::Input) -> Self::Output {
 
             let lhs = Box::new(Self::visit_expression(inner.next().unwrap()));
@@ -130,7 +86,7 @@ impl<'a> Visitor for EaslParser<'a> {
             Node::Term { lhs, operator, rhs }
     }
 
-    #[passthrough_parse_visit]
+    #[with_inner_passthrough]
     fn visit_factor(input: Self::Input) -> Self::Output {
         let lhs = Box::new(Self::visit_expression(inner.next().unwrap()));
         let operator = match inner.next().unwrap().as_rule() {
@@ -142,7 +98,7 @@ impl<'a> Visitor for EaslParser<'a> {
         Node::Factor { lhs, operator, rhs }
     }
 
-    #[passthrough_parse_visit]
+    #[with_inner_passthrough]
     fn visit_unary(input: Self::Input) -> Self::Output {
         let operator = match input.as_rule() {
             Rule::not => UnaryOperator::Not,
@@ -154,12 +110,21 @@ impl<'a> Visitor for EaslParser<'a> {
         Node::Unary { operator, rhs }
     }
 
-    #[parse_visit]
+    #[with_inner]
     fn visit_primary(input: Self::Input) -> Self::Output {
         println!("{:?}", input.as_rule());
         match input.as_rule() {
             Rule::primary => Self::visit_primary(inner.next().unwrap()),
             Rule::literal => Self::visit_primary(inner.next().unwrap()),
+            Rule::lambda => {
+                if inner.len() == 1 {
+                    return Self::visit_primary(inner.next().unwrap());
+                } else {
+                    let param = inner.next().unwrap().as_str().to_string();
+                    let body = Box::new(Self::visit_expression(inner.next().unwrap()));
+                    Node::Primary(Primary::Lambda { param, body })
+                }
+            }
             Rule::int_l => Node::Primary(Primary::Literal(Literal::Int(
                 match inner.next().unwrap().as_rule() {
                     Rule::hex_int => {
@@ -188,13 +153,9 @@ impl<'a> Visitor for EaslParser<'a> {
             _ => unreachable!(),
         }
     }
-
-    fn visit_eoi(_input: Self::Input) -> Self::Output {
-        Node::EOI
-    }
 }
 
-pub fn parse(source: &str) -> Result<Vec<Node>, pest::error::Error<Rule>> {
+pub fn parse(source: &str) -> Result<Vec<Statement>, pest::error::Error<Rule>> {
     match EaslParser::parse(Rule::file, source) {
         Ok(pairs) => {
             let ast = build_ast(pairs);
@@ -204,7 +165,7 @@ pub fn parse(source: &str) -> Result<Vec<Node>, pest::error::Error<Rule>> {
     }
 }
 
-fn build_ast(mut pairs: Pairs<'_, Rule>) -> Vec<Node> {
+fn build_ast(mut pairs: Pairs<'_, Rule>) -> Vec<Statement> {
     let mut ast = Vec::new();
 
     let Some(file) = pairs.next() else {
@@ -213,10 +174,31 @@ fn build_ast(mut pairs: Pairs<'_, Rule>) -> Vec<Node> {
     let statements = file.into_inner();
 
     for statement in statements {
-        ast.push(EaslParser::visit_statement(statement));
+        ast.push(build_statement(statement));
     }
 
     ast
+}
+
+fn build_statement(statement: Pair<'_, Rule>) -> Statement {
+    let mut inner = statement.clone().into_inner();
+    match statement.as_rule() {
+        Rule::statement => build_statement(inner.next().unwrap()),
+        Rule::assignment => {
+            let ident = inner.next().unwrap().as_str().to_string();
+        let expr = EaslParser::visit_expression(inner.next().unwrap());
+
+        Statement::Assignment { ident, expr }
+        },
+        Rule::type_ascription => {
+            let ident = inner.next().unwrap().as_str().to_string();
+        let type_ = build_type(inner.next().unwrap());
+        Statement::TypeAscription { ident, type_ }
+        },
+        Rule::include => {Statement::Include { source: inner.next().unwrap().as_str().to_string() }},
+        Rule::EOI => Statement::EOI,
+        _ => unreachable!(),
+    }
 }
 
 fn build_type(pair: Pair<'_, Rule>) -> Type {
