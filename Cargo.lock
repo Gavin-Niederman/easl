@@ -216,6 +216,7 @@ name = "easl"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "easl_derive",
  "gccjit",
  "lazy_static",
  "miette",
@@ -223,6 +224,14 @@ dependencies = [
  "pest",
  "pest_derive",
  "thiserror",
+]
+
+[[package]]
+name = "easl_derive"
+version = "0.1.0"
+dependencies = [
+ "quote",
+ "syn",
 ]
 
 [[package]]

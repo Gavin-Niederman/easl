@@ -1,11 +1,12 @@
+
 //TODO: Add more
 #[derive(Debug)]
-pub enum Statement {
+pub enum Node {
     //TODO: Syntax for patern matching, in place type ascription, and parameters
     Assignment {
         ident: String,
         // args: Vec<Node>,
-        expr: Node,
+        expr: Box<Node>,
         // type_: Option<Type>,
     },
     TypeAscription {
@@ -15,12 +16,7 @@ pub enum Statement {
     Include {
         source: String,
     },
-    EOI,
-}
-
-//TODO: Add more
-#[derive(Debug)]
-pub enum Node {
+    
     Lambda {
         param: String,
         body: Box<Node>,
@@ -54,6 +50,8 @@ pub enum Node {
         rhs: Box<Node>,
     },
     Primary(Primary),
+    
+    EOI,
 }
 
 #[derive(Debug)]
