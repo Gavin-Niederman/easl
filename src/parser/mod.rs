@@ -1,8 +1,5 @@
 pub mod ast;
 
-use std::marker::PhantomData;
-
-use easl_derive::{with_inner, with_inner_passthrough};
 // use palette::{FromColor, Xyza};
 use pest::{
     iterators::{Pair, Pairs},
@@ -10,150 +7,15 @@ use pest::{
 };
 use pest_derive::Parser;
 
-use ast::{ComparisonOperator, FactorOperator, Node, TermOperator, UnaryOperator};
+use ast::{ComparisonOperator, Expression, FactorOperator, TermOperator, UnaryOperator};
 
-use crate::{parser::ast::{Literal, Primary}, visitor::Visitor};
+use crate::parser::ast::{Literal, Primary};
 
-use self::ast::{Type, Statement};
-
+use self::ast::{Statement, Type};
 
 #[derive(Parser)]
 #[grammar = "parser/easl.pest"]
-pub struct EaslParser<'a> {
-    _marker: PhantomData<&'a ()>,
-}
-impl<'a> Visitor for EaslParser<'a> {
-    type Input = Pair<'a, Rule>;
-    type Output = Node;
-
-    #[with_inner]
-    fn visit_expression(input: Self::Input) -> Self::Output {
-        println!("{:?}", input.as_rule());
-        match input.as_rule() {
-            Rule::expression => Self::visit_expression(inner.next().unwrap()),
-            Rule::r#if => Self::visit_if(input),
-            Rule::function_application => Self::visit_function_application(input),
-            Rule::comparison => Self::visit_comparison(input),
-            Rule::term => Self::visit_term(input),
-            Rule::factor => Self::visit_factor(input),
-            Rule::unary => Self::visit_unary(input),
-            Rule::primary => Self::visit_primary(input),
-            _ => unreachable!(),
-        }
-    }
-
-    #[with_inner_passthrough]
-    fn visit_if(input: Self::Input) -> Self::Output {
-            let cond = Box::new(Self::visit_expression(inner.next().unwrap()));
-            let then = Box::new(Self::visit_expression(inner.next().unwrap()));
-            let else_ = Box::new(Self::visit_expression(inner.next().unwrap()));
-            Node::If { cond, then, else_ }
-    }
-
-    #[with_inner_passthrough]
-    fn visit_function_application(input: Self::Input) -> Self::Output {
-            let function = Box::new(Self::visit_expression(inner.next().unwrap()));
-            let argument = Box::new(Self::visit_expression(inner.next().unwrap()));
-            Node::FunctionApplication { function, argument }
-
-    }
-    #[with_inner_passthrough]
-    fn visit_comparison(input: Self::Input) -> Self::Output {
-            let lhs = Box::new(Self::visit_expression(inner.next().unwrap()));
-            let operator = match inner.next().unwrap().as_rule() {
-                Rule::equivalent => ComparisonOperator::Equivalent,
-                Rule::not_equivalent => ComparisonOperator::NotEquivalent,
-                Rule::less_than => ComparisonOperator::LessThan,
-                Rule::less_than_or_eq => ComparisonOperator::LessThanOrEqual,
-                Rule::greater_than => ComparisonOperator::GreaterThan,
-                Rule::greater_than_or_eq => ComparisonOperator::GreaterThanOrEqual,
-                _ => unreachable!(),
-            };
-            let rhs = Box::new(Self::visit_expression(inner.next().unwrap()));
-            Node::Comparison { lhs, operator, rhs }
-    }
-
-    #[with_inner_passthrough]
-    fn visit_term(input: Self::Input) -> Self::Output {
-
-            let lhs = Box::new(Self::visit_expression(inner.next().unwrap()));
-            let operator = match inner.next().unwrap().as_rule() {
-                Rule::add => TermOperator::Add,
-                Rule::sub => TermOperator::Sub,
-                _ => unreachable!(),
-            };
-            let rhs = Box::new(Self::visit_expression(inner.next().unwrap()));
-            Node::Term { lhs, operator, rhs }
-    }
-
-    #[with_inner_passthrough]
-    fn visit_factor(input: Self::Input) -> Self::Output {
-        let lhs = Box::new(Self::visit_expression(inner.next().unwrap()));
-        let operator = match inner.next().unwrap().as_rule() {
-            Rule::mul => FactorOperator::Mul,
-            Rule::div => FactorOperator::Div,
-            _ => unreachable!(),
-        };
-        let rhs = Box::new(Self::visit_expression(inner.next().unwrap()));
-        Node::Factor { lhs, operator, rhs }
-    }
-
-    #[with_inner_passthrough]
-    fn visit_unary(input: Self::Input) -> Self::Output {
-        let operator = match input.as_rule() {
-            Rule::not => UnaryOperator::Not,
-            Rule::negate => UnaryOperator::Negate,
-            Rule::negative => UnaryOperator::Negative,
-            _ => unreachable!(),
-        };
-        let rhs = Box::new(Self::visit_expression(inner.next().unwrap()));
-        Node::Unary { operator, rhs }
-    }
-
-    #[with_inner]
-    fn visit_primary(input: Self::Input) -> Self::Output {
-        println!("{:?}", input.as_rule());
-        match input.as_rule() {
-            Rule::primary => Self::visit_primary(inner.next().unwrap()),
-            Rule::literal => Self::visit_primary(inner.next().unwrap()),
-            Rule::lambda => {
-                if inner.len() == 1 {
-                    return Self::visit_primary(inner.next().unwrap());
-                } else {
-                    let param = inner.next().unwrap().as_str().to_string();
-                    let body = Box::new(Self::visit_expression(inner.next().unwrap()));
-                    Node::Primary(Primary::Lambda { param, body })
-                }
-            }
-            Rule::int_l => Node::Primary(Primary::Literal(Literal::Int(
-                match inner.next().unwrap().as_rule() {
-                    Rule::hex_int => {
-                        i64::from_str_radix(input.as_str(), 16).unwrap() as f64
-                    }
-                    Rule::binary_int => {
-                        i64::from_str_radix(input.as_str(), 2).unwrap() as f64
-                    }
-                    Rule::decimal_int => input.as_str().parse::<f64>().unwrap(),
-                    _ => unreachable!(),
-                },
-            ))),
-            Rule::string_l => {
-                Node::Primary(Primary::Literal(Literal::String(input.as_str().to_string())))
-            },
-            Rule::bool_l => Node::Primary(Primary::Literal(Literal::Bool(
-                match inner.next().unwrap().as_rule() {
-                    Rule::r#true => true,
-                    Rule::r#false => false,
-                    _ => unreachable!(),
-                },
-            ))),
-            Rule::ident => Node::Primary(Primary::Ident(input.as_str().to_string())),
-            Rule::grouping => Self::visit_expression(inner.next().unwrap()),
-            Rule::unit_l => Node::Primary(Primary::Literal(Literal::Unit)),
-            _ => unreachable!(),
-        }
-    }
-}
+pub struct EaslParser;
 
 pub fn parse(source: &str) -> Result<Vec<Statement>, pest::error::Error<Rule>> {
     match EaslParser::parse(Rule::file, source) {
@@ -186,17 +48,121 @@ fn build_statement(statement: Pair<'_, Rule>) -> Statement {
         Rule::statement => build_statement(inner.next().unwrap()),
         Rule::assignment => {
             let ident = inner.next().unwrap().as_str().to_string();
-        let expr = EaslParser::visit_expression(inner.next().unwrap());
+            let expr = build_expression(inner.next().unwrap());
 
-        Statement::Assignment { ident, expr }
-        },
+            Statement::Assignment { ident, expr }
+        }
         Rule::type_ascription => {
             let ident = inner.next().unwrap().as_str().to_string();
-        let type_ = build_type(inner.next().unwrap());
-        Statement::TypeAscription { ident, type_ }
+            let type_ = build_type(inner.next().unwrap());
+            Statement::TypeAscription { ident, type_ }
+        }
+        Rule::include => Statement::Include {
+            source: inner.next().unwrap().as_str().to_string(),
         },
-        Rule::include => {Statement::Include { source: inner.next().unwrap().as_str().to_string() }},
         Rule::EOI => Statement::EOI,
+        _ => unreachable!(),
+    }
+}
+
+fn build_expression(expression: Pair<'_, Rule>) -> Expression {
+    let mut inner = expression.clone().into_inner();
+    macro_rules! unless_1_inner {
+        ($block:block) => {
+            if inner.len() == 1 {
+                return build_expression(inner.next().unwrap());
+            } else $block
+        };
+    }
+
+    match expression.as_rule() {
+        Rule::expression => build_expression(inner.next().unwrap()),
+        Rule::r#if => unless_1_inner!({
+            let cond = Box::new(build_expression(inner.next().unwrap()));
+            let then = Box::new(build_expression(inner.next().unwrap()));
+            let else_ = Box::new(build_expression(inner.next().unwrap()));
+            Expression::If { cond, then, else_ }
+        }),
+        Rule::comparison => unless_1_inner!({
+            let lhs = Box::new(build_expression(inner.next().unwrap()));
+            let operator = match inner.next().unwrap().as_rule() {
+                Rule::equivalent => ComparisonOperator::Equivalent,
+                Rule::not_equivalent => ComparisonOperator::NotEquivalent,
+                Rule::less_than => ComparisonOperator::LessThan,
+                Rule::less_than_or_eq => ComparisonOperator::LessThanOrEqual,
+                Rule::greater_than => ComparisonOperator::GreaterThan,
+                Rule::greater_than_or_eq => ComparisonOperator::GreaterThanOrEqual,
+                _ => unreachable!(),
+            };
+            let rhs = Box::new(build_expression(inner.next().unwrap()));
+            Expression::Comparison { lhs, operator, rhs }
+        }),
+        Rule::term => unless_1_inner!({
+            let lhs = Box::new(build_expression(inner.next().unwrap()));
+            let operator = match inner.next().unwrap().as_rule() {
+                Rule::add => TermOperator::Add,
+                Rule::sub => TermOperator::Sub,
+                _ => unreachable!(),
+            };
+            let rhs = Box::new(build_expression(inner.next().unwrap()));
+            Expression::Term { lhs, operator, rhs }
+        }),
+        Rule::factor => unless_1_inner!({
+            let lhs = Box::new(build_expression(inner.next().unwrap()));
+            let operator = match inner.next().unwrap().as_rule() {
+                Rule::mul => FactorOperator::Mul,
+                Rule::div => FactorOperator::Div,
+                _ => unreachable!(),
+            };
+            let rhs = Box::new(build_expression(inner.next().unwrap()));
+            Expression::Factor { lhs, operator, rhs }
+        }),
+        Rule::unary => unless_1_inner!({
+            let operator = match inner.next().unwrap().as_rule() {
+                Rule::not => UnaryOperator::Not,
+                Rule::negate => UnaryOperator::Negate,
+                Rule::negative => UnaryOperator::Negative,
+                _ => unreachable!(),
+            };
+            let rhs = Box::new(build_expression(inner.next().unwrap()));
+            Expression::Unary { operator, rhs }
+        }),
+        Rule::function_application => unless_1_inner!({
+            let function = Box::new(build_expression(inner.next().unwrap()));
+            let argument = Box::new(build_expression(inner.next().unwrap()));
+            Expression::FunctionApplication { function, argument }
+        }),
+        Rule::primary => build_expression(inner.next().unwrap()),
+        Rule::literal => build_expression(inner.next().unwrap()),
+        Rule::lambda => unless_1_inner!({
+            println!("{:?}", inner);
+            println!("{:?}", expression.as_span());
+            println!("{:?}", expression.as_rule());
+            let param = inner.next().unwrap().as_str().to_string();
+            let body = Box::new(build_expression(inner.next().unwrap()));
+            Expression::Primary(Primary::Lambda { param, body })
+        }),
+        Rule::int_l => Expression::Primary(Primary::Literal(Literal::Int(
+            match inner.next().unwrap().as_rule() {
+                Rule::hex_int => i64::from_str_radix(expression.as_str(), 16).unwrap() as f64,
+                Rule::binary_int => i64::from_str_radix(expression.as_str(), 2).unwrap() as f64,
+                Rule::decimal_int => expression.as_str().parse::<f64>().unwrap(),
+                _ => unreachable!(),
+            },
+        ))),
+        Rule::string_l => Expression::Primary(Primary::Literal(Literal::String(
+            expression.as_str().to_string(),
+        ))),
+        Rule::bool_l => Expression::Primary(Primary::Literal(Literal::Bool(
+            match inner.next().unwrap().as_rule() {
+                Rule::r#true => true,
+                Rule::r#false => false,
+                _ => unreachable!(),
+            },
+        ))),
+        Rule::ident => Expression::Primary(Primary::Ident(expression.as_str().to_string())),
+        Rule::grouping => build_expression(inner.next().unwrap()),
+        Rule::unit_l => Expression::Primary(Primary::Literal(Literal::Unit)),
         _ => unreachable!(),
     }
 }

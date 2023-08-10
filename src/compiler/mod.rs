@@ -1,8 +1,8 @@
 use gccjit::Context;
 
-use crate::parser::ast::Node;
+use crate::parser::ast::Expression;
 
-pub fn compile(statements: Vec<Node>) -> () {
+pub fn compile(statements: Vec<Expression>) -> () {
     let context = Context::default();
     let float_ty = context.new_type::<f64>();
     let bool_ty = context.new_type::<bool>();

@@ -4,7 +4,7 @@ pub enum Statement {
     Assignment {
         ident: String,
         // args: Vec<Node>,
-        expr: Node,
+        expr: Expression,
         // type_: Option<Type>,
     },
     TypeAscription {
@@ -13,40 +13,40 @@ pub enum Statement {
     },
     Include {
         source: String,
-    },    
+    },
     EOI,
 }
 
 //TODO: Add more
 #[derive(Debug)]
-pub enum Node {
+pub enum Expression {
     If {
-        cond: Box<Node>,
-        then: Box<Node>,
-        else_: Box<Node>,
+        cond: Box<Expression>,
+        then: Box<Expression>,
+        else_: Box<Expression>,
     },
     FunctionApplication {
-        function: Box<Node>,
-        argument: Box<Node>,
+        function: Box<Expression>,
+        argument: Box<Expression>,
     },
     Comparison {
         operator: ComparisonOperator,
-        lhs: Box<Node>,
-        rhs: Box<Node>,
+        lhs: Box<Expression>,
+        rhs: Box<Expression>,
     },
     Term {
         operator: TermOperator,
-        lhs: Box<Node>,
-        rhs: Box<Node>,
+        lhs: Box<Expression>,
+        rhs: Box<Expression>,
     },
     Factor {
         operator: FactorOperator,
-        lhs: Box<Node>,
-        rhs: Box<Node>,
+        lhs: Box<Expression>,
+        rhs: Box<Expression>,
     },
     Unary {
         operator: UnaryOperator,
-        rhs: Box<Node>,
+        rhs: Box<Expression>,
     },
     Primary(Primary),
 }
@@ -83,12 +83,14 @@ pub enum UnaryOperator {
 
 #[derive(Debug)]
 pub enum Primary {
-    Lambda { 
+    Lambda {
         param: String,
-        body: Box<Node>,
+        body: Box<Expression>,
     },
     Literal(Literal),
-    Grouping { expr: Box<Node> },
+    Grouping {
+        expr: Box<Expression>,
+    },
     Ident(String),
 }
 

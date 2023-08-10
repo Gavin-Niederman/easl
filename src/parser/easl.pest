@@ -3,7 +3,7 @@ COMMENT = _{ "--" ~ (!NEWLINE ~ ANY)* ~ NEWLINE? }
 
 file = { SOI ~ (statement | NEWLINE)* ~ EOI }
 
-ident = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "-" | "_")* }
+ident = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "-" | "_")* }
 
 // Statements
 statement = { (assignment | type_ascription | include /* TODO: add more statements */) ~ NEWLINE? }
@@ -49,7 +49,7 @@ function_application = { (primary ~ primary) | primary }
 
 primary = { lambda }
 
-lambda = { ("\\" ~ ident ~ "->" ~ primary) | (literal | grouping | ident) }
+lambda = { ("\\" ~ ident ~ "->" ~ lambda) | (literal | grouping | ident) }
 
 grouping = { "(" ~ expression ~ ")" }
 
