@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
-use miette::Result;
+use miette::{Result, ErrReport};
 #[derive(Parser, Clone)]
 #[command(author, version, about, long_about = None)]
 pub struct Args {
@@ -23,12 +23,10 @@ fn main() -> Result<()> {
                 return Err(miette::miette!("Could not read source file"));
             };
 
-            let ast = match easl::parser::parse(&source) {
-                Ok(ast) => ast,
-                Err(err) => return Err(miette::miette!(err.to_string())),
-            };
-
+            let ast = easl::parser::parse(&source).map_err(|err|  <easl::parser::ParserError as Into<ErrReport>>::into(err))?;
             println!("{:#?}", ast);
+            
+            easl::interpreter::interpret(ast, &source).map_err(|err| <easl::interpreter::InterpreterError as Into<ErrReport>>::into(err))?;
         }
     }
 
