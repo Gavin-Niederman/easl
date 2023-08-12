@@ -40,21 +40,26 @@ pub enum ExpressionType {
         function: Box<Expression>,
         argument: Box<Expression>,
     },
-    Comparison {
-        operator: ComparisonOperator,
+    Binary {
+        operator: BinaryOperator,
         lhs: Box<Expression>,
-        rhs: Box<Expression>,
+        rhs: Box<Expression>
     },
-    Term {
-        operator: TermOperator,
-        lhs: Box<Expression>,
-        rhs: Box<Expression>,
-    },
-    Factor {
-        operator: FactorOperator,
-        lhs: Box<Expression>,
-        rhs: Box<Expression>,
-    },
+    // Comparison {
+    //     operator: ComparisonOperator,
+    //     lhs: Box<Expression>,
+    //     rhs: Box<Expression>,
+    // },
+    // Term {
+    //     operator: TermOperator,
+    //     lhs: Box<Expression>,
+    //     rhs: Box<Expression>,
+    // },
+    // Factor {
+    //     operator: FactorOperator,
+    //     lhs: Box<Expression>,
+    //     rhs: Box<Expression>,
+    // },
     Unary {
         operator: UnaryOperator,
         rhs: Box<Expression>,
@@ -64,23 +69,17 @@ pub enum ExpressionType {
 }
 
 #[derive(Debug)]
-pub enum ComparisonOperator {
+pub enum BinaryOperator {
     Equivalent,
     NotEquivalent,
     GreaterThan,
     LessThan,
     GreaterThanOrEqual,
     LessThanOrEqual,
-}
 
-#[derive(Debug)]
-pub enum TermOperator {
     Add,
     Sub,
-}
 
-#[derive(Debug)]
-pub enum FactorOperator {
     Mul,
     Div,
     Remainder,
@@ -97,6 +96,33 @@ pub enum UnaryOperator {
 pub struct Primary {
     pub primary_type: PrimaryType,
     pub span: miette::SourceSpan,
+}
+
+impl PartialEq for Primary {
+    fn eq(&self, other: &Self) -> bool {
+        match (self.primary_type, other.primary_type) {
+            (PrimaryType::Bool(lhs), PrimaryType::Bool(rhs)) => {lhs == rhs}
+            (PrimaryType::Color(lhs), PrimaryType::Color(rhs)) => {lhs == rhs}
+            (PrimaryType::Int(lhs), PrimaryType::Int(rhs)) => {lhs == rhs}
+            (PrimaryType::String(lhs), PrimaryType::String(rhs)) => {lhs == rhs}
+            (PrimaryType::Unit, PrimaryType::Unit) => {true}
+            _ => {panic!("Cannot compare {:?} and {:?}", self.primary_type, other.primary_type)}
+        }
+    }
+}
+
+impl Primary {
+    pub fn is_same_type(primary_1: &Primary, primary_2: &Primary) -> bool {
+        match (primary_1.primary_type, primary_2.primary_type) {
+            (PrimaryType::Bool(_), PrimaryType::Bool(_)) => {true}
+            (PrimaryType::Color(_), PrimaryType::Color(_)) => {true}
+            (PrimaryType::Int(_), PrimaryType::Int(_)) => {true}
+            (PrimaryType::String(_), PrimaryType::String(_)) => {true}
+            (PrimaryType::Lambda { .. }, PrimaryType::Lambda { .. }) => {false}
+            (PrimaryType::Unit, PrimaryType::Unit) => {true}
+            _ => {false}
+        }
+    }
 }
 
 #[derive(Debug)]

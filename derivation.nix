@@ -1,4 +1,4 @@
-{ rustPlatform, fetchgit, lib, ... }:
+{ rustPlatform, fetchgit, lib, pkgs, ... }:
 
 rustPlatform.buildRustPackage {
     pname = "easl";
@@ -6,10 +6,18 @@ rustPlatform.buildRustPackage {
 
     src = fetchgit {
         url = "https://github.com/Gavin-Niederman/easl";
-        sha256 = "sha256-7SupDDy8xWPdylMwYuFZy3iCdQ9E3E46PvxyKG4uEE8=";
+        sha256 = "sha256-q8d/+ejdjVv1jqvhh9jrhMrCblIf/LyaDG7iIxXddOE=";
     };
 
-    cargoHash = "sha256-1eWdRy5rP7S9lAiDS61WviHMvFDNu4zKhScGP1JYJmk=";
+    cargoHash = "sha256-1GuZHqJz0E927kKA0xtJesS0ebhNFLa5WaBiKcWM76Q=";
+
+    buildInputs = with pkgs; [
+        pkgconfig
+        gdb
+        lldb_9
+        llvm
+        libgccjit
+    ];
 
     meta = with lib; {
         description = "A haskell-like shader language for RGB strips";

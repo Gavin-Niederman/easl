@@ -8,7 +8,7 @@ use pest::{
 };
 use pest_derive::Parser;
 
-use ast::{ComparisonOperator, Expression, FactorOperator, TermOperator, UnaryOperator};
+use ast::{Expression, UnaryOperator, BinaryOperator};
 use thiserror::Error;
 
 use crate::{
@@ -100,36 +100,36 @@ fn build_expression(
             Rule::comparison => unless_1_inner!({
                 let lhs = Box::new(build_next!());
                 let operator = match inner.next().unwrap().as_rule() {
-                    Rule::equivalent => ComparisonOperator::Equivalent,
-                    Rule::not_equivalent => ComparisonOperator::NotEquivalent,
-                    Rule::less_than => ComparisonOperator::LessThan,
-                    Rule::less_than_or_eq => ComparisonOperator::LessThanOrEqual,
-                    Rule::greater_than => ComparisonOperator::GreaterThan,
-                    Rule::greater_than_or_eq => ComparisonOperator::GreaterThanOrEqual,
+                    Rule::equivalent => BinaryOperator::Equivalent,
+                    Rule::not_equivalent => BinaryOperator::NotEquivalent,
+                    Rule::less_than => BinaryOperator::LessThan,
+                    Rule::less_than_or_eq => BinaryOperator::LessThanOrEqual,
+                    Rule::greater_than => BinaryOperator::GreaterThan,
+                    Rule::greater_than_or_eq => BinaryOperator::GreaterThanOrEqual,
                     _ => ParserError::internal_grammar_error(source, expression.as_span())?,
                 };
                 let rhs = Box::new(build_next!());
-                ExpressionType::Comparison { lhs, operator, rhs }
+                ExpressionType::Binary { lhs, operator, rhs }
             }),
             Rule::term => unless_1_inner!({
                 let lhs = Box::new(build_next!());
                 let operator = match inner.next().unwrap().as_rule() {
-                    Rule::add => TermOperator::Add,
-                    Rule::sub => TermOperator::Sub,
+                    Rule::add => BinaryOperator::Add,
+                    Rule::sub => BinaryOperator::Sub,
                     _ => ParserError::internal_grammar_error(source, expression.as_span())?,
                 };
                 let rhs = Box::new(build_next!());
-                ExpressionType::Term { lhs, operator, rhs }
+                ExpressionType::Binary { lhs, operator, rhs }
             }),
             Rule::factor => unless_1_inner!({
                 let lhs = Box::new(build_next!());
                 let operator = match inner.next().unwrap().as_rule() {
-                    Rule::mul => FactorOperator::Mul,
-                    Rule::div => FactorOperator::Div,
+                    Rule::mul => BinaryOperator::Mul,
+                    Rule::div => BinaryOperator::Div,
                     _ => ParserError::internal_grammar_error(source, expression.as_span())?,
                 };
                 let rhs = Box::new(build_next!());
-                ExpressionType::Factor { lhs, operator, rhs }
+                ExpressionType::Binary { lhs, operator, rhs }
             }),
             Rule::unary => unless_1_inner!({
                 let operator = match inner.next().unwrap().as_rule() {
