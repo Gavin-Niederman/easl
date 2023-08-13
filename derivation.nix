@@ -4,10 +4,7 @@ rustPlatform.buildRustPackage {
     pname = "easl";
     version = "0.1.0";
 
-    src = fetchgit {
-        url = "https://github.com/Gavin-Niederman/easl";
-        sha256 = "sha256-q8d/+ejdjVv1jqvhh9jrhMrCblIf/LyaDG7iIxXddOE=";
-    };
+    src = ./.;
 
     cargoHash = "sha256-1GuZHqJz0E927kKA0xtJesS0ebhNFLa5WaBiKcWM76Q=";
 

@@ -193,11 +193,16 @@ fn build_expression(
                 ExpressionType::FunctionApplication { function, argument }
             }),
             Rule::variable => {
-                ExpressionType::Variable(ident_map.get_from_name(expression.as_str()).ok_or(
-                    ParserError::UnknownIdentifier {
-                        unknown_identifier: pest_span_to_miette_span(expression.as_span(), source),
-                    },
-                )?)
+                println!("{:?}", expression.as_str());
+                match inner.next().unwrap().as_rule() {
+                    Rule::ident => ExpressionType::Variable(ident_map.get_from_name(expression.as_str()).ok_or(
+                        ParserError::UnknownIdentifier {
+                            unknown_identifier: pest_span_to_miette_span(expression.as_span(), source),
+                        },
+                    )?),
+                    _ => return Ok(build_next!()),
+                }
+                
             }
             Rule::primary => return Ok(build_next!()),
             Rule::literal => return Ok(build_next!()),

@@ -1,2 +1,2 @@
 string_fn :: String -> Int
-string_fn = \_ -> rgb 1.0 1.0 1.0
+string_fn = \_ -> ((rgb 1.0) 1.0) 1.0
