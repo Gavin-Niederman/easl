@@ -8,7 +8,7 @@ use pest::{
 };
 use pest_derive::Parser;
 
-use ast::{Expression, UnaryOperator, BinaryOperator};
+use ast::{BinaryOperator, Expression, UnaryOperator};
 use thiserror::Error;
 
 use crate::{
@@ -22,12 +22,23 @@ use self::ast::{IdentifierMap, Statement, Type};
 #[grammar = "parser/easl.pest"]
 pub struct EaslParser;
 
-pub fn parse(source: &str) -> Result<Vec<Statement>, ParserError> {
-    build_ast(EaslParser::parse(Rule::file, source)?, source)
+pub fn parse(source: &str) -> Result<(Vec<Statement>, IdentifierMap), ParserError> {
+    let mut ident_map = IdentifierMap::new();
+    Ok((
+        build_ast(
+            EaslParser::parse(Rule::file, source)?,
+            source,
+            &mut ident_map,
+        )?,
+        ident_map,
+    ))
 }
 
-fn build_ast(mut pairs: Pairs<'_, Rule>, source: &str) -> Result<Vec<Statement>, ParserError> {
-    let mut ident_map = IdentifierMap::new();
+fn build_ast(
+    mut pairs: Pairs<'_, Rule>,
+    source: &str,
+    ident_map: &mut IdentifierMap,
+) -> Result<Vec<Statement>, ParserError> {
     let mut ast = Vec::new();
 
     let Some(file) = pairs.next() else {
@@ -36,7 +47,7 @@ fn build_ast(mut pairs: Pairs<'_, Rule>, source: &str) -> Result<Vec<Statement>,
     let statements = file.into_inner();
 
     for statement in statements {
-        ast.push(build_statement(statement, source, &mut ident_map)?);
+        ast.push(build_statement(statement, source, ident_map)?);
     }
 
     Ok(ast)
@@ -51,13 +62,24 @@ fn build_statement(
     match statement.as_rule() {
         Rule::statement => build_statement(inner.next().unwrap(), source, ident_map),
         Rule::assignment => {
-            let ident = ident_map.create_identifier(inner.next().unwrap().to_string());
+            let ident = ident_map
+                .create_identifier(inner.next().unwrap().to_string())
+                .ok_or(ParserError::OverridenIdentifier {
+                    second_assignment: pest_span_to_miette_span(statement.as_span(), source),
+                })?;
             let expr = build_expression(inner.next().unwrap(), source, ident_map)?;
 
             Ok(Statement::Assignment { ident, expr })
         }
         Rule::type_ascription => {
-            let ident = ident_map.create_identifier(inner.next().unwrap().to_string());
+            let ident = inner.next().unwrap();
+            let ident = ident_map
+                .create_identifier(ident.to_string())
+                .or(ident_map.get_from_name(&ident.to_string()))
+                .ok_or(ParserError::UnknownIdentifier {
+                    unknown_identifier: pest_span_to_miette_span(ident.as_span(), source),
+                })?;
+
             let type_ = build_type(inner.next().unwrap(), source)?;
             Ok(Statement::TypeAscription { ident, type_ })
         }
@@ -65,7 +87,12 @@ fn build_statement(
             source: inner.next().unwrap().to_string(),
         }),
         Rule::EOI => Ok(Statement::EOI),
-        _ => ParserError::internal_grammar_error(source, statement.as_span())?,
+        _ => {
+            return Err(ParserError::internal_grammar_error(
+                source,
+                statement.as_span(),
+            ))
+        }
     }
 }
 
@@ -106,7 +133,12 @@ fn build_expression(
                     Rule::less_than_or_eq => BinaryOperator::LessThanOrEqual,
                     Rule::greater_than => BinaryOperator::GreaterThan,
                     Rule::greater_than_or_eq => BinaryOperator::GreaterThanOrEqual,
-                    _ => ParserError::internal_grammar_error(source, expression.as_span())?,
+                    _ => {
+                        return Err(ParserError::internal_grammar_error(
+                            source,
+                            expression.as_span(),
+                        ))
+                    }
                 };
                 let rhs = Box::new(build_next!());
                 ExpressionType::Binary { lhs, operator, rhs }
@@ -116,7 +148,12 @@ fn build_expression(
                 let operator = match inner.next().unwrap().as_rule() {
                     Rule::add => BinaryOperator::Add,
                     Rule::sub => BinaryOperator::Sub,
-                    _ => ParserError::internal_grammar_error(source, expression.as_span())?,
+                    _ => {
+                        return Err(ParserError::internal_grammar_error(
+                            source,
+                            expression.as_span(),
+                        ))
+                    }
                 };
                 let rhs = Box::new(build_next!());
                 ExpressionType::Binary { lhs, operator, rhs }
@@ -126,7 +163,12 @@ fn build_expression(
                 let operator = match inner.next().unwrap().as_rule() {
                     Rule::mul => BinaryOperator::Mul,
                     Rule::div => BinaryOperator::Div,
-                    _ => ParserError::internal_grammar_error(source, expression.as_span())?,
+                    _ => {
+                        return Err(ParserError::internal_grammar_error(
+                            source,
+                            expression.as_span(),
+                        ))
+                    }
                 };
                 let rhs = Box::new(build_next!());
                 ExpressionType::Binary { lhs, operator, rhs }
@@ -134,9 +176,13 @@ fn build_expression(
             Rule::unary => unless_1_inner!({
                 let operator = match inner.next().unwrap().as_rule() {
                     Rule::not => UnaryOperator::Not,
-                    Rule::negate => UnaryOperator::Negate,
                     Rule::negative => UnaryOperator::Negative,
-                    _ => ParserError::internal_grammar_error(source, expression.as_span())?,
+                    _ => {
+                        return Err(ParserError::internal_grammar_error(
+                            source,
+                            expression.as_span(),
+                        ))
+                    }
                 };
                 let rhs = Box::new(build_next!());
                 ExpressionType::Unary { operator, rhs }
@@ -146,6 +192,13 @@ fn build_expression(
                 let argument = Box::new(build_next!());
                 ExpressionType::FunctionApplication { function, argument }
             }),
+            Rule::variable => {
+                ExpressionType::Variable(ident_map.get_from_name(expression.as_str()).ok_or(
+                    ParserError::UnknownIdentifier {
+                        unknown_identifier: pest_span_to_miette_span(expression.as_span(), source),
+                    },
+                )?)
+            }
             Rule::primary => return Ok(build_next!()),
             Rule::literal => return Ok(build_next!()),
             Rule::lambda => unless_1_inner!({
@@ -155,7 +208,6 @@ fn build_expression(
                 let param = inner.next().unwrap().to_string();
                 let span = pest_span_to_miette_span(expression.as_span(), source);
                 let body = Box::new(build_next!());
-                span;
                 ExpressionType::Primary(Primary {
                     primary_type: PrimaryType::Lambda { param, body },
                     span,
@@ -166,7 +218,12 @@ fn build_expression(
                     Rule::hex_int => i64::from_str_radix(expression.as_str(), 16).unwrap() as f64,
                     Rule::binary_int => i64::from_str_radix(expression.as_str(), 2).unwrap() as f64,
                     Rule::decimal_int => expression.as_str().parse::<f64>().unwrap(),
-                    _ => ParserError::internal_grammar_error(source, expression.as_span())?,
+                    _ => {
+                        return Err(ParserError::internal_grammar_error(
+                            source,
+                            expression.as_span(),
+                        ))
+                    }
                 }),
                 span: pest_span_to_miette_span(expression.as_span(), source),
             }),
@@ -178,32 +235,39 @@ fn build_expression(
                 primary_type: PrimaryType::Bool(match inner.next().unwrap().as_rule() {
                     Rule::r#true => true,
                     Rule::r#false => false,
-                    _ => ParserError::internal_grammar_error(source, expression.as_span())?,
+                    _ => {
+                        return Err(ParserError::internal_grammar_error(
+                            source,
+                            expression.as_span(),
+                        ))
+                    }
                 }),
                 span: pest_span_to_miette_span(expression.as_span(), source),
             }),
-            Rule::ident => {
-                ExpressionType::Identifier(ident_map.create_identifier(expression.to_string()))
-            }
             Rule::grouping => return Ok(build_next!()),
             Rule::unit_l => ExpressionType::Primary(Primary {
                 primary_type: PrimaryType::Unit,
                 span: pest_span_to_miette_span(expression.as_span(), source),
             }),
-            _ => ParserError::internal_grammar_error(source, expression.as_span())?,
+            _ => {
+                return Err(ParserError::internal_grammar_error(
+                    source,
+                    expression.as_span(),
+                ))
+            }
         },
         span: pest_span_to_miette_span(expression.as_span(), source),
     })
 }
 
-fn build_type(pair: Pair<'_, Rule>, source: &str) -> Result<Type, ParserError> {
-    let mut inner = pair.clone().into_inner();
+fn build_type(type_: Pair<'_, Rule>, source: &str) -> Result<Type, ParserError> {
+    let mut inner = type_.clone().into_inner();
     macro_rules! build_next {
         () => {
             build_type(inner.next().unwrap(), source)?
         };
     }
-    Ok(match pair.as_rule() {
+    Ok(match type_.as_rule() {
         Rule::type_annotation => build_next!(),
         Rule::r#type => build_next!(),
         Rule::base_type => build_next!(),
@@ -218,7 +282,7 @@ fn build_type(pair: Pair<'_, Rule>, source: &str) -> Result<Type, ParserError> {
         Rule::bool_t => Type::Bool,
         Rule::unit_t => Type::Unit,
         Rule::array_t => Type::Array(Box::new(build_next!())),
-        _ => ParserError::internal_grammar_error(source, pair.as_span())?,
+        _ => return Err(ParserError::internal_grammar_error(source, type_.as_span())),
     })
 }
 
@@ -239,14 +303,29 @@ pub enum ParserError {
         #[label("Internal grammar error")]
         at: SourceSpan,
     },
+    #[error("Identifier defined multiple times")]
+    #[diagnostic(
+        code(easl::parser::overriden_identifier),
+        help = "Remove one of the definitions"
+    )]
+    OverridenIdentifier {
+        #[label("Identifier was assigned again here")]
+        second_assignment: SourceSpan,
+    },
+    #[error("Unknown identifier")]
+    #[diagnostic(code(easl::parser::unknown_identifier), help = "Was this a typo?")]
+    UnknownIdentifier {
+        #[label("Unknown identifier")]
+        unknown_identifier: SourceSpan,
+    },
 }
 
 impl ParserError {
-    fn internal_grammar_error(source_code: &str, span: pest::Span<'_>) -> Result<!, Self> {
+    fn internal_grammar_error(source_code: &str, span: pest::Span<'_>) -> Self {
         let span = miette::SourceSpan::new(span.start().into(), (span.end() - span.start()).into());
-        Err(Self::InternalGrammarError {
+        Self::InternalGrammarError {
             source_code: source_code.to_string(),
             at: span,
-        })
+        }
     }
 }

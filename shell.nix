@@ -1,5 +1,4 @@
-{ pkgs }:
-
+with import <nixpkgs> {};
 pkgs.mkShell {
     buildInputs = with pkgs; [
         pkgconfig
@@ -8,7 +7,7 @@ pkgs.mkShell {
         llvm
         libgccjit
     ];
-    LD_LIBRARY_PATH = with pkgs; nixpkgs.lib.makeLibraryPath [
+    LD_LIBRARY_PATH = with pkgs; lib.makeLibraryPath [
         libgccjit
     ];
     LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";

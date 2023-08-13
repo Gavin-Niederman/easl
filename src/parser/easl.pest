@@ -40,16 +40,17 @@ div = { "/" }
 remainder = { "%" }
 
 unary = !{ (unary_op ~ function_application) | function_application }
-unary_op = { not | negate | negative }
+unary_op = { not | negative }
 not = { "!" }
-negate = { "~" }
 negative = { "-" }
 
 function_application = { (primary ~ primary) | primary }
 
+variable = { ident | primary }
+
 primary = { lambda }
 
-lambda = { ("\\" ~ ident ~ "->" ~ lambda) | (literal | grouping | ident) }
+lambda = { ("\\" ~ ident ~ "->" ~ lambda) | (literal | grouping ) }
 
 grouping = { "(" ~ expression ~ ")" }
 

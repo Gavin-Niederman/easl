@@ -1,18 +1,60 @@
+use std::collections::HashMap;
+
 use miette::{Diagnostic, SourceSpan};
 use thiserror::Error;
 
-use crate::parser::ast::{Expression, Primary, Statement, ComparisonOperator, ExpressionType, PrimaryType, BinaryOperator};
+use crate::parser::ast::{
+    BinaryOperator, Expression, ExpressionType, IdentifierMap, Primary, PrimaryType, Statement,
+    UnaryOperator, Identifier, Type,
+};
 
 pub struct InterpreterState {
+    pub ident_map: IdentifierMap,
 
+    pub value_map: HashMap<Identifier, Primary>,
+    pub type_map: HashMap<Identifier, Type>,
 }
 
-pub fn interpret(ast: Vec<Statement>, source: &str) -> Result<(), InterpreterError> {
+pub fn interpret(
+    statements: Vec<Statement>,
+    source: &str,
+    ident_map: IdentifierMap,
+) -> Result<(), InterpreterError> {
+    let mut state = InterpreterState { ident_map, value_map: HashMap::new(), type_map: HashMap::new() };
+    for statement in statements {
+        interpret_statement(statement, source, &mut state)?;
+    }
+    Ok(())
+}
+
+fn execute(state: InterpreterState, position: i64) -> Result<(), InterpreterError> {
+    todo!("write the code that actually sets leds");
+    Ok(())
+}
+
+fn interpret_statement(
+    statement: Statement,
+    source: &str,
+    state: &mut InterpreterState,
+) -> Result<(), InterpreterError> {
+    match statement {
+        Statement::Assignment { ident, expr } => {
+            let expr = interpret_expression(expr, source)?;
+            state.value_map.insert(ident, expr);
+        }
+        Statement::TypeAscription { ident, type_ } => {
+            state.type_map.insert(ident, type_);
+        }
+        Statement::Include { .. } => {},
+        Statement::EOI => (),
+    }
+
+    
 
     Ok(())
 }
 
-pub fn interpret_expression(expression: Expression, source: &str) -> Result<Primary, InterpreterError> {
+fn interpret_expression(expression: Expression, source: &str) -> Result<Primary, InterpreterError> {
     match expression.expression_type {
         ExpressionType::If { cond, then, else_ } => {
             let cond = interpret_expression(*cond, source)?;
@@ -39,57 +81,103 @@ pub fn interpret_expression(expression: Expression, source: &str) -> Result<Prim
                     this_binary: expression.span,
                     this_lhs: lhs.span,
                     this_rhs: rhs.span,
-                })
+                });
             }
 
             Ok(match operator {
-                BinaryOperator::Equivalent => {
-                    Primary { primary_type: PrimaryType::Bool(lhs == rhs), span: expression.span }
+                BinaryOperator::Equivalent => Primary {
+                    primary_type: PrimaryType::Bool(lhs == rhs),
+                    span: expression.span,
                 },
-                BinaryOperator::NotEquivalent => {
-                    Primary { primary_type: PrimaryType::Bool(lhs != rhs), span: expression.span }
+                BinaryOperator::NotEquivalent => Primary {
+                    primary_type: PrimaryType::Bool(lhs != rhs),
+                    span: expression.span,
                 },
                 BinaryOperator::GreaterThan => {
                     let (PrimaryType::Int(lhs), PrimaryType::Int(rhs)) = (lhs.primary_type, rhs.primary_type) else {
                         todo!()
                     };
-                    Primary { primary_type: PrimaryType::Bool(lhs > rhs), span: expression.span }
-                },
+                    Primary {
+                        primary_type: PrimaryType::Bool(lhs > rhs),
+                        span: expression.span,
+                    }
+                }
                 BinaryOperator::LessThan => {
                     let (PrimaryType::Int(lhs), PrimaryType::Int(rhs)) = (lhs.primary_type, rhs.primary_type) else {
                         todo!()
                     };
-                    Primary { primary_type: PrimaryType::Bool(lhs < rhs), span: expression.span }
-                },
-                BinaryOperator::GreaterThanOrEqual=> {
+                    Primary {
+                        primary_type: PrimaryType::Bool(lhs < rhs),
+                        span: expression.span,
+                    }
+                }
+                BinaryOperator::GreaterThanOrEqual => {
                     let (PrimaryType::Int(lhs), PrimaryType::Int(rhs)) = (lhs.primary_type, rhs.primary_type) else {
                         todo!()
                     };
-                    Primary { primary_type: PrimaryType::Bool(lhs >= rhs), span: expression.span }
-                },
-                BinaryOperator::LessThanOrEqual=> {
+                    Primary {
+                        primary_type: PrimaryType::Bool(lhs >= rhs),
+                        span: expression.span,
+                    }
+                }
+                BinaryOperator::LessThanOrEqual => {
                     let (PrimaryType::Int(lhs), PrimaryType::Int(rhs)) = (lhs.primary_type, rhs.primary_type) else {
                         todo!()
                     };
-                    Primary { primary_type: PrimaryType::Bool(lhs <= rhs), span: expression.span }
-                },
+                    Primary {
+                        primary_type: PrimaryType::Bool(lhs <= rhs),
+                        span: expression.span,
+                    }
+                }
 
-                BinaryOperator::Add => {
-                    
+                BinaryOperator::Add => match (lhs.primary_type, rhs.primary_type) {
+                    (PrimaryType::Int(lhs), PrimaryType::Int(rhs)) => Primary {
+                        primary_type: PrimaryType::Int(lhs + rhs),
+                        span: expression.span,
+                    },
+                    (PrimaryType::String(lhs), PrimaryType::String(rhs)) => Primary {
+                        primary_type: PrimaryType::String(lhs + &rhs),
+                        span: expression.span,
+                    },
+                    _ => todo!(),
                 },
                 BinaryOperator::Sub => {
-
-                },
+                    let (PrimaryType::Int(lhs), PrimaryType::Int(rhs)) = (lhs.primary_type, rhs.primary_type) else {
+                        todo!()
+                    };
+                    Primary {
+                        primary_type: PrimaryType::Int(lhs - rhs),
+                        span: expression.span,
+                    }
+                }
 
                 BinaryOperator::Mul => {
-
-                },
+                    let (PrimaryType::Int(lhs), PrimaryType::Int(rhs)) = (lhs.primary_type, rhs.primary_type) else {
+                        todo!()
+                    };
+                    Primary {
+                        primary_type: PrimaryType::Int(lhs * rhs),
+                        span: expression.span,
+                    }
+                }
                 BinaryOperator::Div => {
-
-                },
+                    let (PrimaryType::Int(lhs), PrimaryType::Int(rhs)) = (lhs.primary_type, rhs.primary_type) else {
+                        todo!()
+                    };
+                    Primary {
+                        primary_type: PrimaryType::Int(lhs / rhs),
+                        span: expression.span,
+                    }
+                }
                 BinaryOperator::Remainder => {
-
-                },
+                    let (PrimaryType::Int(lhs), PrimaryType::Int(rhs)) = (lhs.primary_type, rhs.primary_type) else {
+                        todo!()
+                    };
+                    Primary {
+                        primary_type: PrimaryType::Int(lhs % rhs),
+                        span: expression.span,
+                    }
+                }
             })
         }
         ExpressionType::FunctionApplication { function, argument } => {
@@ -97,8 +185,28 @@ pub fn interpret_expression(expression: Expression, source: &str) -> Result<Prim
             let argument = interpret_expression(*argument, source)?;
 
             todo!()
-        },
-        ExpressionType::Identifier(identifier) => todo!(),
+        }
+        ExpressionType::Unary { operator, rhs } => {
+            let rhs = interpret_expression(*rhs, source)?;
+
+            Ok(match operator {
+                UnaryOperator::Negative => match rhs.primary_type {
+                    PrimaryType::Int(rhs) => Primary {
+                        primary_type: PrimaryType::Int(-rhs),
+                        span: expression.span,
+                    },
+                    _ => todo!(),
+                },
+                UnaryOperator::Not => match rhs.primary_type {
+                    PrimaryType::Bool(rhs) => Primary {
+                        primary_type: PrimaryType::Bool(!rhs),
+                        span: expression.span,
+                    },
+                    _ => todo!(),
+                },
+            })
+        }
+        ExpressionType::Variable(identifier) => todo!(),
         ExpressionType::Primary(primary) => Ok(primary),
     }
 }
@@ -106,7 +214,10 @@ pub fn interpret_expression(expression: Expression, source: &str) -> Result<Prim
 #[derive(Debug, Error, Diagnostic)]
 pub enum InterpreterError {
     #[error("If condition did not evaluate to a boolean")]
-    #[diagnostic(code(easl::interpreter::if_condition_not_bool), help = "Make sure your if condition evaluates to a boolean")]
+    #[diagnostic(
+        code(easl::interpreter::if_condition_not_bool),
+        help = "Make sure your if condition evaluates to a boolean"
+    )]
     IfConditionWrongType {
         #[source_code]
         source_code: String,
@@ -116,7 +227,10 @@ pub enum InterpreterError {
         this_condition: SourceSpan,
     },
     #[error("Mismatched binary operand types")]
-    #[diagnostic(code(easl::interpreter::binary_operand_mismatch), help = "Make sure that both operands are the same type")]
+    #[diagnostic(
+        code(easl::interpreter::binary_operand_mismatch),
+        help = "Make sure that both operands are the same type"
+    )]
     BinaryOperandMismatch {
         #[source_code]
         source_code: String,
@@ -128,13 +242,16 @@ pub enum InterpreterError {
         this_rhs: SourceSpan,
     },
     #[error("Attempted to negate non boolean")]
-    #[diagnostic(code(easl::interpreter::negated_wrong_type), help = "Make sure that you are actually trying to negate a bool")]
+    #[diagnostic(
+        code(easl::interpreter::negated_wrong_type),
+        help = "Make sure that you are actually trying to negate a bool"
+    )]
     NegatedWrongType {
         #[source_code]
         source_code: String,
         #[label("In this negate operation")]
         this_op: SourceSpan,
         #[label("This isn't a boolean")]
-        this_expr: SourceSpan
-    }
+        this_expr: SourceSpan,
+    },
 }

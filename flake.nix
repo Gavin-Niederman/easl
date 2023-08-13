@@ -1,14 +1,4 @@
 {
-  outputs = { self, nixpkgs }: let pkgs = nixpkgs.legacyPackages.x86_64-linux; in rec {
-    devShells.x86_64-linux.default = pkgs.mkShell {
-      
-    };
-
-    
-  };
-}
-
-{
   inputs = {
     flake-utils.url = "github:numtide/flake-utils";
   };
@@ -23,19 +13,18 @@
       let
         pkgs = nixpkgs.legacyPackages.${system};
       in with pkgs; rec {
-        devShells.${system} = import ./shell.nix { inherit pkgs; };
-        packages = {
+        devShells.${system} = import ./shell.nix;
+        packages = rec {
           easl = import ./default.nix;
-          default = target;
+          default = easl;
         };
         apps = rec {
           easl = flake-utils.lib.mkApp { drv = self.packages.${system}.easl; };
-          default = winittest;
+          default = easl;
         };
       }
     )) // rec {
       overlay = overlays.default;
       overlays.default = (final: _: let  in { easl = import ./default.nix; });
     };
-  
 }
