@@ -40,7 +40,7 @@ fn main() -> Result<()> {
             for include in includes {
                 let (mut include_statements, include_ident_map) = include?;
                 statements.append(&mut include_statements);
-                ident_map.map.extend(include_ident_map.map.into_iter());
+                ident_map.map.extend(include_ident_map.map);
             }
 
             easl::interpreter::interpret(statements, &source, ident_map)

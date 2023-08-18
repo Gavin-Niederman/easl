@@ -189,7 +189,7 @@ impl IdentifierMap {
         let mut hasher = DefaultHasher::new();
         name.hash(&mut hasher);
         let handle = hasher.finish();
-        if let Some(_) = self.map.get(&handle) {
+        if self.map.get(&handle).is_some() {
             return Err(Identifier { handle });
         }
         self.map.insert(handle, name);
