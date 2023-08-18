@@ -8,15 +8,14 @@ use pest::{
 };
 use pest_derive::Parser;
 
-use ast::{BinaryOperator, Expression, UnaryOperator};
 use thiserror::Error;
 
 use crate::{
-    parser::ast::{ExpressionType, Primary, PrimaryType},
-    utils::pest_span_to_miette_span,
+    parser::ast::{BinaryOperator, Expression, Primary, PrimaryType, UnaryOperator},
+    utils::pest_span_to_range,
 };
 
-use self::ast::{IdentifierMap, Statement, Type};
+use self::ast::{IdentifierMap, Statement, Type, Spanned};
 
 #[derive(Parser)]
 #[grammar = "parser/easl.pest"]
@@ -64,21 +63,19 @@ fn build_statement(
         Rule::assignment => {
             let ident = ident_map
                 .create_identifier(inner.next().unwrap().to_string())
-                .ok_or(ParserError::OverridenIdentifier {
-                    second_assignment: pest_span_to_miette_span(statement.as_span(), source),
-                })?;
+                .or(Err(ParserError::OverridenIdentifier {
+                    source_code: source.to_string(),
+                    second_assignment: pest_span_to_range(statement.as_span()).into(),
+                }))?;
             let expr = build_expression(inner.next().unwrap(), source, ident_map)?;
 
             Ok(Statement::Assignment { ident, expr })
         }
         Rule::type_ascription => {
             let ident = inner.next().unwrap();
-            let ident = ident_map
-                .create_identifier(ident.to_string())
-                .or(ident_map.get_from_name(&ident.to_string()))
-                .ok_or(ParserError::UnknownIdentifier {
-                    unknown_identifier: pest_span_to_miette_span(ident.as_span(), source),
-                })?;
+            let ident = match ident_map.create_identifier(ident.as_str().to_string()) {
+                Ok(ident) | Err(ident) => ident
+            };
 
             let type_ = build_type(inner.next().unwrap(), source)?;
             Ok(Statement::TypeAscription { ident, type_ })
@@ -100,7 +97,7 @@ fn build_expression(
     expression: Pair<'_, Rule>,
     source: &str,
     ident_map: &mut IdentifierMap,
-) -> Result<Expression, ParserError> {
+) -> Result<Spanned<Expression>, ParserError> {
     let mut inner = expression.clone().into_inner();
     macro_rules! build_next {
         () => {
@@ -115,154 +112,162 @@ fn build_expression(
         };
     }
 
-    Ok(Expression {
-        expression_type: match expression.as_rule() {
-            Rule::expression => return Ok(build_next!()),
-            Rule::r#if => unless_1_inner!({
-                let cond = Box::new(build_next!());
-                let then = Box::new(build_next!());
-                let else_ = Box::new(build_next!());
-                ExpressionType::If { cond, then, else_ }
-            }),
-            Rule::comparison => unless_1_inner!({
-                let lhs = Box::new(build_next!());
-                let operator = match inner.next().unwrap().as_rule() {
-                    Rule::equivalent => BinaryOperator::Equivalent,
-                    Rule::not_equivalent => BinaryOperator::NotEquivalent,
-                    Rule::less_than => BinaryOperator::LessThan,
-                    Rule::less_than_or_eq => BinaryOperator::LessThanOrEqual,
-                    Rule::greater_than => BinaryOperator::GreaterThan,
-                    Rule::greater_than_or_eq => BinaryOperator::GreaterThanOrEqual,
-                    _ => {
-                        return Err(ParserError::internal_grammar_error(
-                            source,
-                            expression.as_span(),
-                        ))
-                    }
-                };
-                let rhs = Box::new(build_next!());
-                ExpressionType::Binary { lhs, operator, rhs }
-            }),
-            Rule::term => unless_1_inner!({
-                let lhs = Box::new(build_next!());
-                let operator = match inner.next().unwrap().as_rule() {
-                    Rule::add => BinaryOperator::Add,
-                    Rule::sub => BinaryOperator::Sub,
-                    _ => {
-                        return Err(ParserError::internal_grammar_error(
-                            source,
-                            expression.as_span(),
-                        ))
-                    }
-                };
-                let rhs = Box::new(build_next!());
-                ExpressionType::Binary { lhs, operator, rhs }
-            }),
-            Rule::factor => unless_1_inner!({
-                let lhs = Box::new(build_next!());
-                let operator = match inner.next().unwrap().as_rule() {
-                    Rule::mul => BinaryOperator::Mul,
-                    Rule::div => BinaryOperator::Div,
-                    _ => {
-                        return Err(ParserError::internal_grammar_error(
-                            source,
-                            expression.as_span(),
-                        ))
-                    }
-                };
-                let rhs = Box::new(build_next!());
-                ExpressionType::Binary { lhs, operator, rhs }
-            }),
-            Rule::unary => unless_1_inner!({
-                let operator = match inner.next().unwrap().as_rule() {
-                    Rule::not => UnaryOperator::Not,
-                    Rule::negative => UnaryOperator::Negative,
-                    _ => {
-                        return Err(ParserError::internal_grammar_error(
-                            source,
-                            expression.as_span(),
-                        ))
-                    }
-                };
-                let rhs = Box::new(build_next!());
-                ExpressionType::Unary { operator, rhs }
-            }),
-            Rule::function_application => unless_1_inner!({
-                let function = Box::new(build_next!());
-                let argument = Box::new(build_next!());
-                ExpressionType::FunctionApplication { function, argument }
-            }),
-            Rule::variable => {
-                println!("{:?}", expression.as_str());
-                match inner.next().unwrap().as_rule() {
-                    Rule::ident => ExpressionType::Variable(ident_map.get_from_name(expression.as_str()).ok_or(
-                        ParserError::UnknownIdentifier {
-                            unknown_identifier: pest_span_to_miette_span(expression.as_span(), source),
-                        },
-                    )?),
-                    _ => return Ok(build_next!()),
+    Ok(Spanned::new(
+        pest_span_to_range(expression.as_span()),
+        match expression.as_rule() {
+        Rule::expression => return Ok(build_next!()),
+        Rule::r#if => unless_1_inner!({
+            let cond = Box::new(build_next!());
+            let then = Box::new(build_next!());
+            let else_ = Box::new(build_next!());
+            Expression::If { cond, then, else_ }
+        }),
+        Rule::comparison => unless_1_inner!({
+            let lhs = Box::new(build_next!());
+            let operator = match inner.next().unwrap().as_rule() {
+                Rule::equivalent => BinaryOperator::Equivalent,
+                Rule::not_equivalent => BinaryOperator::NotEquivalent,
+                Rule::less_than => BinaryOperator::LessThan,
+                Rule::less_than_or_eq => BinaryOperator::LessThanOrEqual,
+                Rule::greater_than => BinaryOperator::GreaterThan,
+                Rule::greater_than_or_eq => BinaryOperator::GreaterThanOrEqual,
+                _ => {
+                    return Err(ParserError::internal_grammar_error(
+                        source,
+                        expression.as_span(),
+                    ))
                 }
-                
+            };
+            let rhs = Box::new(build_next!());
+            Expression::Binary { lhs, operator, rhs }
+        }),
+        Rule::term => unless_1_inner!({
+            let lhs = Box::new(build_next!());
+            let operator = match inner.next().unwrap().as_rule() {
+                Rule::add => BinaryOperator::Add,
+                Rule::sub => BinaryOperator::Sub,
+                _ => {
+                    return Err(ParserError::internal_grammar_error(
+                        source,
+                        expression.as_span(),
+                    ))
+                }
+            };
+            let rhs = Box::new(build_next!());
+            Expression::Binary { lhs, operator, rhs }
+        }),
+        Rule::factor => unless_1_inner!({
+            let lhs = Box::new(build_next!());
+            let operator = match inner.next().unwrap().as_rule() {
+                Rule::mul => BinaryOperator::Mul,
+                Rule::div => BinaryOperator::Div,
+                _ => {
+                    return Err(ParserError::internal_grammar_error(
+                        source,
+                        expression.as_span(),
+                    ))
+                }
+            };
+            let rhs = Box::new(build_next!());
+            Expression::Binary { lhs, operator, rhs }
+        }),
+        Rule::unary => unless_1_inner!({
+            let operator = match inner.next().unwrap().as_rule() {
+                Rule::not => UnaryOperator::Not,
+                Rule::negative => UnaryOperator::Negative,
+                _ => {
+                    return Err(ParserError::internal_grammar_error(
+                        source,
+                        expression.as_span(),
+                    ))
+                }
+            };
+            let rhs = Box::new(build_next!());
+            Expression::Unary { operator, rhs }
+        }),
+        Rule::function_application => unless_1_inner!({
+            let function = Box::new(build_next!());
+            let argument = Box::new(build_next!());
+            Expression::FunctionApplication { function, argument }
+        }),
+        Rule::variable => {
+            println!("{:?}", expression.as_span());
+            let next = inner.next().unwrap();
+            match next.as_rule() {
+                Rule::ident => {
+                    Expression::Variable(ident_map.get_from_name(expression.as_str()).ok_or(
+                        ParserError::UnknownIdentifier {
+                            source_code: source.to_string(),
+                            ident: next.as_str().to_string(),
+                            unknown_identifier: pest_span_to_range(expression.as_span()).into(),
+                        },
+                    )?)
+                }
+                _ => {
+                    return Ok(build_expression(next, source, ident_map)?)
+                },
             }
-            Rule::primary => return Ok(build_next!()),
-            Rule::literal => return Ok(build_next!()),
-            Rule::lambda => unless_1_inner!({
-                println!("{:?}", inner);
-                println!("{:?}", expression.as_span());
-                println!("{:?}", expression.as_rule());
-                let param = inner.next().unwrap().to_string();
-                let span = pest_span_to_miette_span(expression.as_span(), source);
-                let body = Box::new(build_next!());
-                ExpressionType::Primary(Primary {
-                    primary_type: PrimaryType::Lambda { param, body },
-                    span,
-                })
+        }
+        Rule::primary => return Ok(build_next!()),
+        Rule::literal => return Ok(build_next!()),
+        Rule::lambda => unless_1_inner!({
+            println!("{:?}", inner);
+            println!("{:?}", expression.as_span());
+            println!("{:?}", expression.as_rule());
+            let param = inner.next().unwrap().as_str().to_string();
+            let param = match ident_map.create_identifier(param) {
+                Ok(param) | Err(param) => param
+            };
+            let span = pest_span_to_range(expression.as_span()).into();
+            let body = Box::new(build_next!());
+            Expression::Primary(Primary {
+                primary_type: PrimaryType::Lambda { param, body },
+                span,
+            })
+        }),
+        Rule::int_l => Expression::Primary(Primary {
+            primary_type: PrimaryType::Int(match inner.next().unwrap().as_rule() {
+                Rule::hex_int => i64::from_str_radix(expression.as_str(), 16).unwrap() as f64,
+                Rule::binary_int => i64::from_str_radix(expression.as_str(), 2).unwrap() as f64,
+                Rule::decimal_int => expression.as_str().parse::<f64>().unwrap(),
+                _ => {
+                    return Err(ParserError::internal_grammar_error(
+                        source,
+                        expression.as_span(),
+                    ))
+                }
             }),
-            Rule::int_l => ExpressionType::Primary(Primary {
-                primary_type: PrimaryType::Int(match inner.next().unwrap().as_rule() {
-                    Rule::hex_int => i64::from_str_radix(expression.as_str(), 16).unwrap() as f64,
-                    Rule::binary_int => i64::from_str_radix(expression.as_str(), 2).unwrap() as f64,
-                    Rule::decimal_int => expression.as_str().parse::<f64>().unwrap(),
-                    _ => {
-                        return Err(ParserError::internal_grammar_error(
-                            source,
-                            expression.as_span(),
-                        ))
-                    }
-                }),
-                span: pest_span_to_miette_span(expression.as_span(), source),
+            span: pest_span_to_range(expression.as_span()).into(),
+        }),
+        Rule::string_l => Expression::Primary(Primary {
+            primary_type: PrimaryType::String(expression.as_str().to_string()),
+            span: pest_span_to_range(expression.as_span()).into(),
+        }),
+        Rule::bool_l => Expression::Primary(Primary {
+            primary_type: PrimaryType::Bool(match inner.next().unwrap().as_rule() {
+                Rule::r#true => true,
+                Rule::r#false => false,
+                _ => {
+                    return Err(ParserError::internal_grammar_error(
+                        source,
+                        expression.as_span(),
+                    ))
+                }
             }),
-            Rule::string_l => ExpressionType::Primary(Primary {
-                primary_type: PrimaryType::String(expression.to_string()),
-                span: pest_span_to_miette_span(expression.as_span(), source),
-            }),
-            Rule::bool_l => ExpressionType::Primary(Primary {
-                primary_type: PrimaryType::Bool(match inner.next().unwrap().as_rule() {
-                    Rule::r#true => true,
-                    Rule::r#false => false,
-                    _ => {
-                        return Err(ParserError::internal_grammar_error(
-                            source,
-                            expression.as_span(),
-                        ))
-                    }
-                }),
-                span: pest_span_to_miette_span(expression.as_span(), source),
-            }),
-            Rule::grouping => return Ok(build_next!()),
-            Rule::unit_l => ExpressionType::Primary(Primary {
-                primary_type: PrimaryType::Unit,
-                span: pest_span_to_miette_span(expression.as_span(), source),
-            }),
-            _ => {
-                return Err(ParserError::internal_grammar_error(
-                    source,
-                    expression.as_span(),
-                ))
-            }
-        },
-        span: pest_span_to_miette_span(expression.as_span(), source),
-    })
+            span: pest_span_to_range(expression.as_span()).into(),
+        }),
+        Rule::grouping => return Ok(build_next!()),
+        Rule::unit_l => Expression::Primary(Primary {
+            primary_type: PrimaryType::Unit,
+            span: pest_span_to_range(expression.as_span()).into(),
+        }),
+        _ => {
+            return Err(ParserError::internal_grammar_error(
+                source,
+                expression.as_span(),
+            ))
+        }
+    }))
 }
 
 fn build_type(type_: Pair<'_, Rule>, source: &str) -> Result<Type, ParserError> {
@@ -314,12 +319,17 @@ pub enum ParserError {
         help = "Remove one of the definitions"
     )]
     OverridenIdentifier {
+        #[source_code]
+        source_code: String,
         #[label("Identifier was assigned again here")]
         second_assignment: SourceSpan,
     },
-    #[error("Unknown identifier")]
+    #[error("Unknown identifier '{ident}'")]
     #[diagnostic(code(easl::parser::unknown_identifier), help = "Was this a typo?")]
     UnknownIdentifier {
+        #[source_code]
+        source_code: String,
+        ident: String,
         #[label("Unknown identifier")]
         unknown_identifier: SourceSpan,
     },

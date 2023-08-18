@@ -4,8 +4,8 @@ use miette::{Diagnostic, SourceSpan};
 use thiserror::Error;
 
 use crate::parser::ast::{
-    BinaryOperator, Expression, ExpressionType, IdentifierMap, Primary, PrimaryType, Statement,
-    UnaryOperator, Identifier, Type,
+    BinaryOperator, Expression, IdentifierMap, Primary, PrimaryType, Statement,
+    UnaryOperator, Identifier, Type, Spanned,
 };
 
 pub struct InterpreterState {
@@ -54,9 +54,9 @@ fn interpret_statement(
     Ok(())
 }
 
-fn interpret_expression(expression: Expression, source: &str) -> Result<Primary, InterpreterError> {
-    match expression.expression_type {
-        ExpressionType::If { cond, then, else_ } => {
+fn interpret_expression(expression: Spanned<Expression>, source: &str) -> Result<Primary, InterpreterError> {
+    match expression.inner {
+        Expression::If { cond, then, else_ } => {
             let cond = interpret_expression(*cond, source)?;
             let then = interpret_expression(*then, source)?;
             let else_ = interpret_expression(*else_, source)?;
@@ -66,19 +66,19 @@ fn interpret_expression(expression: Expression, source: &str) -> Result<Primary,
                 PrimaryType::Bool(false) => Ok(else_),
                 _ => Err(InterpreterError::IfConditionWrongType {
                     source_code: source.to_string(),
-                    this_if: expression.span,
-                    this_condition: expression.span,
+                    this_if: expression.span.into(),
+                    this_condition: cond.span.into(),
                 }),
             }
         }
-        ExpressionType::Binary { operator, lhs, rhs } => {
+        Expression::Binary { operator, lhs, rhs } => {
             let lhs = interpret_expression(*lhs, source)?;
             let rhs = interpret_expression(*rhs, source)?;
 
             if Primary::is_same_type(&lhs, &rhs) {
                 return Err(InterpreterError::BinaryOperandMismatch {
                     source_code: source.to_string(),
-                    this_binary: expression.span,
+                    this_binary: expression.span.into(),
                     this_lhs: lhs.span,
                     this_rhs: rhs.span,
                 });
@@ -87,11 +87,11 @@ fn interpret_expression(expression: Expression, source: &str) -> Result<Primary,
             Ok(match operator {
                 BinaryOperator::Equivalent => Primary {
                     primary_type: PrimaryType::Bool(lhs == rhs),
-                    span: expression.span,
+                    span: expression.span.into(),
                 },
                 BinaryOperator::NotEquivalent => Primary {
                     primary_type: PrimaryType::Bool(lhs != rhs),
-                    span: expression.span,
+                    span: expression.span.into(),
                 },
                 BinaryOperator::GreaterThan => {
                     let (PrimaryType::Int(lhs), PrimaryType::Int(rhs)) = (lhs.primary_type, rhs.primary_type) else {
@@ -99,7 +99,7 @@ fn interpret_expression(expression: Expression, source: &str) -> Result<Primary,
                     };
                     Primary {
                         primary_type: PrimaryType::Bool(lhs > rhs),
-                        span: expression.span,
+                        span: expression.span.into(),
                     }
                 }
                 BinaryOperator::LessThan => {
@@ -108,7 +108,7 @@ fn interpret_expression(expression: Expression, source: &str) -> Result<Primary,
                     };
                     Primary {
                         primary_type: PrimaryType::Bool(lhs < rhs),
-                        span: expression.span,
+                        span: expression.span.into(),
                     }
                 }
                 BinaryOperator::GreaterThanOrEqual => {
@@ -117,7 +117,7 @@ fn interpret_expression(expression: Expression, source: &str) -> Result<Primary,
                     };
                     Primary {
                         primary_type: PrimaryType::Bool(lhs >= rhs),
-                        span: expression.span,
+                        span: expression.span.into(),
                     }
                 }
                 BinaryOperator::LessThanOrEqual => {
@@ -126,18 +126,18 @@ fn interpret_expression(expression: Expression, source: &str) -> Result<Primary,
                     };
                     Primary {
                         primary_type: PrimaryType::Bool(lhs <= rhs),
-                        span: expression.span,
+                        span: expression.span.into(),
                     }
                 }
 
                 BinaryOperator::Add => match (lhs.primary_type, rhs.primary_type) {
                     (PrimaryType::Int(lhs), PrimaryType::Int(rhs)) => Primary {
                         primary_type: PrimaryType::Int(lhs + rhs),
-                        span: expression.span,
+                        span: expression.span.into(),
                     },
                     (PrimaryType::String(lhs), PrimaryType::String(rhs)) => Primary {
                         primary_type: PrimaryType::String(lhs + &rhs),
-                        span: expression.span,
+                        span: expression.span.into(),
                     },
                     _ => todo!(),
                 },
@@ -147,7 +147,7 @@ fn interpret_expression(expression: Expression, source: &str) -> Result<Primary,
                     };
                     Primary {
                         primary_type: PrimaryType::Int(lhs - rhs),
-                        span: expression.span,
+                        span: expression.span.into(),
                     }
                 }
 
@@ -157,7 +157,7 @@ fn interpret_expression(expression: Expression, source: &str) -> Result<Primary,
                     };
                     Primary {
                         primary_type: PrimaryType::Int(lhs * rhs),
-                        span: expression.span,
+                        span: expression.span.into(),
                     }
                 }
                 BinaryOperator::Div => {
@@ -166,7 +166,7 @@ fn interpret_expression(expression: Expression, source: &str) -> Result<Primary,
                     };
                     Primary {
                         primary_type: PrimaryType::Int(lhs / rhs),
-                        span: expression.span,
+                        span: expression.span.into(),
                     }
                 }
                 BinaryOperator::Remainder => {
@@ -175,39 +175,39 @@ fn interpret_expression(expression: Expression, source: &str) -> Result<Primary,
                     };
                     Primary {
                         primary_type: PrimaryType::Int(lhs % rhs),
-                        span: expression.span,
+                        span: expression.span.into(),
                     }
                 }
             })
         }
-        ExpressionType::FunctionApplication { function, argument } => {
+        Expression::FunctionApplication { function, argument } => {
             let function = interpret_expression(*function, source)?;
             let argument = interpret_expression(*argument, source)?;
 
             todo!()
         }
-        ExpressionType::Unary { operator, rhs } => {
+        Expression::Unary { operator, rhs } => {
             let rhs = interpret_expression(*rhs, source)?;
 
             Ok(match operator {
                 UnaryOperator::Negative => match rhs.primary_type {
                     PrimaryType::Int(rhs) => Primary {
                         primary_type: PrimaryType::Int(-rhs),
-                        span: expression.span,
+                        span: expression.span.into(),
                     },
                     _ => todo!(),
                 },
                 UnaryOperator::Not => match rhs.primary_type {
                     PrimaryType::Bool(rhs) => Primary {
                         primary_type: PrimaryType::Bool(!rhs),
-                        span: expression.span,
+                        span: expression.span.into(),
                     },
                     _ => todo!(),
                 },
             })
         }
-        ExpressionType::Variable(identifier) => todo!(),
-        ExpressionType::Primary(primary) => Ok(primary),
+        Expression::Variable(identifier) => todo!(),
+        Expression::Primary(primary) => Ok(primary),
     }
 }
 

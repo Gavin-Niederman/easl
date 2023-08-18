@@ -1,7 +1,41 @@
 use std::{
     collections::hash_map::DefaultHasher,
     hash::{Hash, Hasher},
+    ops::Range,
 };
+
+pub struct Spanned<T> {
+    pub span: Range<usize>,
+    pub inner: T,
+}
+
+impl<T> Spanned<T> {
+    pub fn new(span: Range<usize>, inner: T) -> Self {
+        Self { span, inner }
+    }
+}
+
+impl<T> Clone for Spanned<T>
+where
+    T: Clone,
+{
+    fn clone(&self) -> Self {
+        Self {
+            span: self.span.clone(),
+            inner: self.inner.clone(),
+        }
+    }
+}
+
+impl<T> std::fmt::Debug for Spanned<T>
+where
+    T: std::fmt::Debug
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "Spanned {{\n\tinner: {:#?}\n\tspan: {:?}\n}}", self.inner, self.span)?;
+        Ok(())
+    }
+}
 
 #[derive(Debug, Clone)]
 pub enum Statement {
@@ -9,7 +43,7 @@ pub enum Statement {
     Assignment {
         ident: Identifier,
         // args: Vec<Node>,
-        expr: Expression,
+        expr: Spanned<Expression>,
         // type_: Option<Type>,
     },
     TypeAscription {
@@ -22,32 +56,26 @@ pub enum Statement {
     EOI,
 }
 
-#[derive(Debug, Clone)]
-pub struct Expression {
-    pub expression_type: ExpressionType,
-    pub span: miette::SourceSpan,
-}
-
 //TODO: Add more
 #[derive(Debug, Clone)]
-pub enum ExpressionType {
+pub enum Expression {
     If {
-        cond: Box<Expression>,
-        then: Box<Expression>,
-        else_: Box<Expression>,
+        cond: Box<Spanned<Expression>>,
+        then: Box<Spanned<Expression>>,
+        else_: Box<Spanned<Expression>>,
     },
     Binary {
         operator: BinaryOperator,
-        lhs: Box<Expression>,
-        rhs: Box<Expression>,
+        lhs: Box<Spanned<Expression>>,
+        rhs: Box<Spanned<Expression>>,
     },
     Unary {
         operator: UnaryOperator,
-        rhs: Box<Expression>,
+        rhs: Box<Spanned<Expression>>,
     },
     FunctionApplication {
-        function: Box<Expression>,
-        argument: Box<Expression>,
+        function: Box<Spanned<Expression>>,
+        argument: Box<Spanned<Expression>>,
     },
     Variable(Identifier),
     Primary(Primary),
@@ -120,8 +148,8 @@ impl Primary {
 #[derive(Debug, Clone)]
 pub enum PrimaryType {
     Lambda {
-        param: String,
-        body: Box<Expression>,
+        param: Identifier,
+        body: Box<Spanned<Expression>>,
     },
     String(String),
     Int(f64),
@@ -136,7 +164,7 @@ pub struct Identifier {
     pub handle: u64,
 }
 pub struct IdentifierMap {
-    pub map: std::collections::HashMap<String, u64>,
+    pub map: std::collections::HashMap<u64, String>,
 }
 impl IdentifierMap {
     pub fn new() -> Self {
@@ -152,32 +180,29 @@ impl IdentifierMap {
             .map(|name| {
                 let mut hasher = DefaultHasher::new();
                 name.hash(&mut hasher);
-                (name, hasher.finish())
+                (hasher.finish(), name)
             })
             .collect(),
         }
     }
-    pub fn create_identifier(&mut self, name: String) -> Option<Identifier> {
+    pub fn create_identifier(&mut self, name: String) -> Result<Identifier, Identifier> {
         let mut hasher = DefaultHasher::new();
         name.hash(&mut hasher);
         let handle = hasher.finish();
-        if self.map.contains_key(&name) {
-            return None;
+        if let Some(_) = self.map.get(&handle) {
+            return Err(Identifier { handle });
         }
-        self.map.insert(name, handle);
-        Some(Identifier { handle })
+        self.map.insert(handle, name);
+        Ok(Identifier { handle })
     }
     pub fn get(&self, identifier: &Identifier) -> Option<&String> {
-        self.map
-            .iter()
-            .find(|(_, handle)| **handle == identifier.handle)
-            .map(|(name, _)| name)
+        self.map.get(&identifier.handle)
     }
     pub fn get_from_name(&self, name: &str) -> Option<Identifier> {
         self.map
             .iter()
-            .find(|(key, _)| key == &name)
-            .map(|(_, handle)| Identifier { handle: *handle })
+            .find(|(_, value)| value == &name)
+            .map(|(key, _)| Identifier { handle: *key })
     }
 }
 

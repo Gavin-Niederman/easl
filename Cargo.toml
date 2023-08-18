@@ -16,3 +16,4 @@ pest_derive = "2.7.0"
 thiserror = "1.0.40"
 
 easl_derive = { path = "./easl_derive" }
+chumsky = "0.9.2"
