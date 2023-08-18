@@ -4,7 +4,7 @@ use miette::{Diagnostic, SourceSpan};
 use thiserror::Error;
 
 use crate::parser::ast::{
-    BinaryOperator, Expression, IdentifierMap, Primary, PrimaryType, Statement,
+    BinaryOperator, Expression, IdentifierMap, Primary, Statement,
     UnaryOperator, Identifier, Type, Spanned,
 };
 
@@ -40,7 +40,7 @@ fn interpret_statement(
     match statement {
         Statement::Assignment { ident, expr } => {
             let expr = interpret_expression(expr, source)?;
-            state.value_map.insert(ident, expr);
+            state.value_map.insert(ident, expr.inner);
         }
         Statement::TypeAscription { ident, type_ } => {
             state.type_map.insert(ident, type_);
@@ -54,16 +54,16 @@ fn interpret_statement(
     Ok(())
 }
 
-fn interpret_expression(expression: Spanned<Expression>, source: &str) -> Result<Primary, InterpreterError> {
+fn interpret_expression(expression: Spanned<Expression>, source: &str) -> Result<Spanned<Primary>, InterpreterError> {
     match expression.inner {
         Expression::If { cond, then, else_ } => {
             let cond = interpret_expression(*cond, source)?;
             let then = interpret_expression(*then, source)?;
             let else_ = interpret_expression(*else_, source)?;
 
-            match cond.primary_type {
-                PrimaryType::Bool(true) => Ok(then),
-                PrimaryType::Bool(false) => Ok(else_),
+            match cond.inner {
+                Primary::Bool(true) => Ok(then),
+                Primary::Bool(false) => Ok(else_),
                 _ => Err(InterpreterError::IfConditionWrongType {
                     source_code: source.to_string(),
                     this_if: expression.span.into(),
@@ -75,106 +75,106 @@ fn interpret_expression(expression: Spanned<Expression>, source: &str) -> Result
             let lhs = interpret_expression(*lhs, source)?;
             let rhs = interpret_expression(*rhs, source)?;
 
-            if Primary::is_same_type(&lhs, &rhs) {
+            if Primary::is_same_type(&lhs.inner, &rhs.inner) {
                 return Err(InterpreterError::BinaryOperandMismatch {
                     source_code: source.to_string(),
                     this_binary: expression.span.into(),
-                    this_lhs: lhs.span,
-                    this_rhs: rhs.span,
+                    this_lhs: lhs.span.into(),
+                    this_rhs: rhs.span.into(),
                 });
             }
 
             Ok(match operator {
-                BinaryOperator::Equivalent => Primary {
-                    primary_type: PrimaryType::Bool(lhs == rhs),
+                BinaryOperator::Equivalent => Spanned {
+                    inner: Primary::Bool(lhs == rhs),
                     span: expression.span.into(),
                 },
-                BinaryOperator::NotEquivalent => Primary {
-                    primary_type: PrimaryType::Bool(lhs != rhs),
+                BinaryOperator::NotEquivalent => Spanned {
+                    inner: Primary::Bool(lhs != rhs),
                     span: expression.span.into(),
                 },
                 BinaryOperator::GreaterThan => {
-                    let (PrimaryType::Int(lhs), PrimaryType::Int(rhs)) = (lhs.primary_type, rhs.primary_type) else {
+                    let (Primary::Int(lhs), Primary::Int(rhs)) = (lhs.inner, rhs.inner) else {
                         todo!()
                     };
-                    Primary {
-                        primary_type: PrimaryType::Bool(lhs > rhs),
+                    Spanned {
+                        inner: Primary::Bool(lhs > rhs),
                         span: expression.span.into(),
                     }
                 }
                 BinaryOperator::LessThan => {
-                    let (PrimaryType::Int(lhs), PrimaryType::Int(rhs)) = (lhs.primary_type, rhs.primary_type) else {
+                    let (Primary::Int(lhs), Primary::Int(rhs)) = (lhs.inner, rhs.inner) else {
                         todo!()
                     };
-                    Primary {
-                        primary_type: PrimaryType::Bool(lhs < rhs),
+                    Spanned {
+                        inner: Primary::Bool(lhs < rhs),
                         span: expression.span.into(),
                     }
                 }
                 BinaryOperator::GreaterThanOrEqual => {
-                    let (PrimaryType::Int(lhs), PrimaryType::Int(rhs)) = (lhs.primary_type, rhs.primary_type) else {
+                    let (Primary::Int(lhs), Primary::Int(rhs)) = (lhs.inner, rhs.inner) else {
                         todo!()
                     };
-                    Primary {
-                        primary_type: PrimaryType::Bool(lhs >= rhs),
+                    Spanned {
+                        inner: Primary::Bool(lhs >= rhs),
                         span: expression.span.into(),
                     }
                 }
                 BinaryOperator::LessThanOrEqual => {
-                    let (PrimaryType::Int(lhs), PrimaryType::Int(rhs)) = (lhs.primary_type, rhs.primary_type) else {
+                    let (Primary::Int(lhs), Primary::Int(rhs)) = (lhs.inner, rhs.inner) else {
                         todo!()
                     };
-                    Primary {
-                        primary_type: PrimaryType::Bool(lhs <= rhs),
+                    Spanned {
+                        inner: Primary::Bool(lhs <= rhs),
                         span: expression.span.into(),
                     }
                 }
 
-                BinaryOperator::Add => match (lhs.primary_type, rhs.primary_type) {
-                    (PrimaryType::Int(lhs), PrimaryType::Int(rhs)) => Primary {
-                        primary_type: PrimaryType::Int(lhs + rhs),
+                BinaryOperator::Add => match (lhs.inner, rhs.inner) {
+                    (Primary::Int(lhs), Primary::Int(rhs)) => Spanned {
+                        inner: Primary::Int(lhs + rhs),
                         span: expression.span.into(),
                     },
-                    (PrimaryType::String(lhs), PrimaryType::String(rhs)) => Primary {
-                        primary_type: PrimaryType::String(lhs + &rhs),
+                    (Primary::String(lhs), Primary::String(rhs)) => Spanned {
+                        inner: Primary::String(lhs + &rhs),
                         span: expression.span.into(),
                     },
                     _ => todo!(),
                 },
                 BinaryOperator::Sub => {
-                    let (PrimaryType::Int(lhs), PrimaryType::Int(rhs)) = (lhs.primary_type, rhs.primary_type) else {
+                    let (Primary::Int(lhs), Primary::Int(rhs)) = (lhs.inner, rhs.inner) else {
                         todo!()
                     };
-                    Primary {
-                        primary_type: PrimaryType::Int(lhs - rhs),
+                    Spanned {
+                        inner: Primary::Int(lhs - rhs),
                         span: expression.span.into(),
                     }
                 }
 
                 BinaryOperator::Mul => {
-                    let (PrimaryType::Int(lhs), PrimaryType::Int(rhs)) = (lhs.primary_type, rhs.primary_type) else {
+                    let (Primary::Int(lhs), Primary::Int(rhs)) = (lhs.inner, rhs.inner) else {
                         todo!()
                     };
-                    Primary {
-                        primary_type: PrimaryType::Int(lhs * rhs),
+                    Spanned {
+                        inner: Primary::Int(lhs * rhs),
                         span: expression.span.into(),
                     }
                 }
                 BinaryOperator::Div => {
-                    let (PrimaryType::Int(lhs), PrimaryType::Int(rhs)) = (lhs.primary_type, rhs.primary_type) else {
+                    let (Primary::Int(lhs), Primary::Int(rhs)) = (lhs.inner, rhs.inner) else {
                         todo!()
                     };
-                    Primary {
-                        primary_type: PrimaryType::Int(lhs / rhs),
+                    Spanned {
+                        inner: Primary::Int(lhs / rhs),
                         span: expression.span.into(),
                     }
                 }
                 BinaryOperator::Remainder => {
-                    let (PrimaryType::Int(lhs), PrimaryType::Int(rhs)) = (lhs.primary_type, rhs.primary_type) else {
+                    let (Primary::Int(lhs), Primary::Int(rhs)) = (lhs.inner, rhs.inner) else {
                         todo!()
                     };
-                    Primary {
-                        primary_type: PrimaryType::Int(lhs % rhs),
+                    Spanned {
+                        inner: Primary::Int(lhs % rhs),
                         span: expression.span.into(),
                     }
                 }
@@ -190,16 +190,16 @@ fn interpret_expression(expression: Spanned<Expression>, source: &str) -> Result
             let rhs = interpret_expression(*rhs, source)?;
 
             Ok(match operator {
-                UnaryOperator::Negative => match rhs.primary_type {
-                    PrimaryType::Int(rhs) => Primary {
-                        primary_type: PrimaryType::Int(-rhs),
+                UnaryOperator::Negative => match rhs.inner {
+                    Primary::Int(rhs) => Spanned {
+                        inner: Primary::Int(-rhs),
                         span: expression.span.into(),
                     },
                     _ => todo!(),
                 },
-                UnaryOperator::Not => match rhs.primary_type {
-                    PrimaryType::Bool(rhs) => Primary {
-                        primary_type: PrimaryType::Bool(!rhs),
+                UnaryOperator::Not => match rhs.inner {
+                    Primary::Bool(rhs) => Spanned {
+                        inner: Primary::Bool(!rhs),
                         span: expression.span.into(),
                     },
                     _ => todo!(),

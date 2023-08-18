@@ -11,7 +11,7 @@ use pest_derive::Parser;
 use thiserror::Error;
 
 use crate::{
-    parser::ast::{BinaryOperator, Expression, Primary, PrimaryType, UnaryOperator},
+    parser::ast::{BinaryOperator, Expression, Primary, UnaryOperator},
     utils::pest_span_to_range,
 };
 
@@ -220,13 +220,13 @@ fn build_expression(
             };
             let span = pest_span_to_range(expression.as_span()).into();
             let body = Box::new(build_next!());
-            Expression::Primary(Primary {
-                primary_type: PrimaryType::Lambda { param, body },
+            Expression::Primary(Spanned {
+                inner: Primary::Lambda { param, body },
                 span,
             })
         }),
-        Rule::int_l => Expression::Primary(Primary {
-            primary_type: PrimaryType::Int(match inner.next().unwrap().as_rule() {
+        Rule::int_l => Expression::Primary(Spanned {
+            inner: Primary::Int(match inner.next().unwrap().as_rule() {
                 Rule::hex_int => i64::from_str_radix(expression.as_str(), 16).unwrap() as f64,
                 Rule::binary_int => i64::from_str_radix(expression.as_str(), 2).unwrap() as f64,
                 Rule::decimal_int => expression.as_str().parse::<f64>().unwrap(),
@@ -239,12 +239,12 @@ fn build_expression(
             }),
             span: pest_span_to_range(expression.as_span()).into(),
         }),
-        Rule::string_l => Expression::Primary(Primary {
-            primary_type: PrimaryType::String(expression.as_str().to_string()),
+        Rule::string_l => Expression::Primary(Spanned {
+            inner: Primary::String(expression.as_str().to_string()),
             span: pest_span_to_range(expression.as_span()).into(),
         }),
-        Rule::bool_l => Expression::Primary(Primary {
-            primary_type: PrimaryType::Bool(match inner.next().unwrap().as_rule() {
+        Rule::bool_l => Expression::Primary(Spanned {
+            inner: Primary::Bool(match inner.next().unwrap().as_rule() {
                 Rule::r#true => true,
                 Rule::r#false => false,
                 _ => {
@@ -257,8 +257,8 @@ fn build_expression(
             span: pest_span_to_range(expression.as_span()).into(),
         }),
         Rule::grouping => return Ok(build_next!()),
-        Rule::unit_l => Expression::Primary(Primary {
-            primary_type: PrimaryType::Unit,
+        Rule::unit_l => Expression::Primary(Spanned {
+            inner: Primary::Unit,
             span: pest_span_to_range(expression.as_span()).into(),
         }),
         _ => {

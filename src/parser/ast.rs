@@ -4,6 +4,8 @@ use std::{
     ops::Range,
 };
 
+use rusttyc::{Variant, Arity};
+
 pub struct Spanned<T> {
     pub span: Range<usize>,
     pub inner: T,
@@ -34,6 +36,12 @@ where
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "Spanned {{\n\tinner: {:#?}\n\tspan: {:?}\n}}", self.inner, self.span)?;
         Ok(())
+    }
+}
+
+impl<T> PartialEq for Spanned<T> where T: PartialEq {
+    fn eq(&self, other: &Self) -> bool {
+        self.inner == other.inner
     }
 }
 
@@ -78,7 +86,7 @@ pub enum Expression {
         argument: Box<Spanned<Expression>>,
     },
     Variable(Identifier),
-    Primary(Primary),
+    Primary(Spanned<Primary>),
 }
 
 #[derive(Debug, Clone)]
@@ -104,49 +112,25 @@ pub enum UnaryOperator {
     Negative,
 }
 
-#[derive(Debug, Clone)]
-pub struct Primary {
-    pub primary_type: PrimaryType,
-    pub span: miette::SourceSpan,
-}
-
-impl PartialEq for Primary {
-    fn eq(&self, other: &Self) -> bool {
-        match (self.primary_type.clone(), other.primary_type.clone()) {
-            (PrimaryType::Bool(lhs), PrimaryType::Bool(rhs)) => lhs == rhs,
-            (PrimaryType::Color(lhs), PrimaryType::Color(rhs)) => lhs == rhs,
-            (PrimaryType::Int(lhs), PrimaryType::Int(rhs)) => lhs == rhs,
-            (PrimaryType::String(lhs), PrimaryType::String(rhs)) => lhs == rhs,
-            (PrimaryType::Unit, PrimaryType::Unit) => true,
-            _ => {
-                panic!(
-                    "Cannot compare {:?} and {:?}",
-                    self.primary_type, other.primary_type
-                )
-            }
-        }
-    }
-}
-
 impl Primary {
     pub fn is_same_type(primary_1: &Primary, primary_2: &Primary) -> bool {
         match (
-            primary_1.primary_type.clone(),
-            primary_2.primary_type.clone(),
+            primary_1,
+            primary_2,
         ) {
-            (PrimaryType::Bool(_), PrimaryType::Bool(_)) => true,
-            (PrimaryType::Color(_), PrimaryType::Color(_)) => true,
-            (PrimaryType::Int(_), PrimaryType::Int(_)) => true,
-            (PrimaryType::String(_), PrimaryType::String(_)) => true,
-            (PrimaryType::Lambda { .. }, PrimaryType::Lambda { .. }) => false,
-            (PrimaryType::Unit, PrimaryType::Unit) => true,
+            (Primary::Bool(_), Primary::Bool(_)) => true,
+            (Primary::Color(_), Primary::Color(_)) => true,
+            (Primary::Int(_), Primary::Int(_)) => true,
+            (Primary::String(_), Primary::String(_)) => true,
+            (Primary::Lambda { .. }, Primary::Lambda { .. }) => false,
+            (Primary::Unit, Primary::Unit) => true,
             _ => false,
         }
     }
 }
 
 #[derive(Debug, Clone)]
-pub enum PrimaryType {
+pub enum Primary {
     Lambda {
         param: Identifier,
         body: Box<Spanned<Expression>>,
@@ -156,6 +140,26 @@ pub enum PrimaryType {
     Bool(bool),
     Color(palette::Xyza<palette::white_point::D65, f64>),
     Unit,
+}
+impl PartialEq for Primary {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Primary::Bool(l), Primary::Bool(r)) => {
+                l == r
+            },
+            (Primary::Color(l), Primary::Color(r)) => {
+                l == r
+            },
+            (Primary::Int(l), Primary::Int(r)) => {
+                l == r
+            },
+            (Primary::String(l), Primary::String(r)) => {
+                l == r 
+            },
+            (Primary::Unit, Primary::Unit) => true,
+            _ => false
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -206,8 +210,9 @@ impl IdentifierMap {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Type {
+    Infer,
     String,
     Int,
     Color,

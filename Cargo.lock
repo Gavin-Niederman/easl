@@ -245,6 +245,7 @@ dependencies = [
  "palette",
  "pest",
  "pest_derive",
+ "rusttyc",
  "thiserror",
 ]
 
@@ -636,6 +637,12 @@ dependencies = [
  "linux-raw-sys",
  "windows-sys",
 ]
+
+[[package]]
+name = "rusttyc"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "14ae3b1a443c1a8f71f24d05d6d7081e161e5babc225818c5e3223a5afd045cb"
 
 [[package]]
 name = "sha2"
