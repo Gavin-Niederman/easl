@@ -2,11 +2,11 @@ use gccjit::Context;
 
 use crate::parser::ast::Expression;
 
-pub fn compile(statements: Vec<Expression>) -> () {
+pub fn compile(_statements: Vec<Expression>) {
     let context = Context::default();
     let float_ty = context.new_type::<f64>();
-    let bool_ty = context.new_type::<bool>();
-    let string_ty = context.new_type::<char>().make_pointer();
+    let _bool_ty = context.new_type::<bool>();
+    let _string_ty = context.new_type::<char>().make_pointer();
     let color_struct = context.new_struct_type(
         None,
         "Color",
@@ -18,7 +18,7 @@ pub fn compile(statements: Vec<Expression>) -> () {
         ],
     );
 
-    let frag = context.new_function(
+    let _frag = context.new_function(
         None,
         gccjit::FunctionType::Exported,
         color_struct.as_type(),

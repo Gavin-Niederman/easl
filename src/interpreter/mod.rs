@@ -3,9 +3,12 @@ use std::collections::HashMap;
 use miette::{Diagnostic, SourceSpan};
 use thiserror::Error;
 
-use crate::parser::ast::{
-    BinaryOperator, Expression, IdentifierMap, Primary, Statement,
-    UnaryOperator, Identifier, Type, Spanned,
+use crate::parser::{
+    ast::{
+        BinaryOperator, Expression, Identifier, IdentifierMap, Primary, Spanned, Statement,
+        UnaryOperator,
+    },
+    tc::Type,
 };
 
 pub struct InterpreterState {
@@ -16,28 +19,32 @@ pub struct InterpreterState {
 }
 
 pub fn interpret(
-    statements: Vec<Statement>,
+    statements: Vec<Spanned<Statement>>,
     source: &str,
     ident_map: IdentifierMap,
 ) -> Result<(), InterpreterError> {
-    let mut state = InterpreterState { ident_map, value_map: HashMap::new(), type_map: HashMap::new() };
+    let mut state = InterpreterState {
+        ident_map,
+        value_map: HashMap::new(),
+        type_map: HashMap::new(),
+    };
     for statement in statements {
         interpret_statement(statement, source, &mut state)?;
     }
     Ok(())
 }
 
-fn execute(state: InterpreterState, position: i64) -> Result<(), InterpreterError> {
+fn execute(_state: InterpreterState, _position: i64) -> Result<(), InterpreterError> {
     todo!("write the code that actually sets leds");
     Ok(())
 }
 
 fn interpret_statement(
-    statement: Statement,
+    statement: Spanned<Statement>,
     source: &str,
     state: &mut InterpreterState,
 ) -> Result<(), InterpreterError> {
-    match statement {
+    match statement.inner {
         Statement::Assignment { ident, expr } => {
             let expr = interpret_expression(expr, source)?;
             state.value_map.insert(ident, expr.inner);
@@ -45,16 +52,15 @@ fn interpret_statement(
         Statement::TypeAscription { ident, type_ } => {
             state.type_map.insert(ident, type_);
         }
-        Statement::Include { .. } => {},
-        Statement::EOI => (),
     }
-
-    
 
     Ok(())
 }
 
-fn interpret_expression(expression: Spanned<Expression>, source: &str) -> Result<Spanned<Primary>, InterpreterError> {
+fn interpret_expression(
+    expression: Spanned<Expression>,
+    source: &str,
+) -> Result<Spanned<Primary>, InterpreterError> {
     match expression.inner {
         Expression::If { cond, then, else_ } => {
             let cond = interpret_expression(*cond, source)?;
@@ -87,11 +93,11 @@ fn interpret_expression(expression: Spanned<Expression>, source: &str) -> Result
             Ok(match operator {
                 BinaryOperator::Equivalent => Spanned {
                     inner: Primary::Bool(lhs == rhs),
-                    span: expression.span.into(),
+                    span: expression.span,
                 },
                 BinaryOperator::NotEquivalent => Spanned {
                     inner: Primary::Bool(lhs != rhs),
-                    span: expression.span.into(),
+                    span: expression.span,
                 },
                 BinaryOperator::GreaterThan => {
                     let (Primary::Int(lhs), Primary::Int(rhs)) = (lhs.inner, rhs.inner) else {
@@ -99,7 +105,7 @@ fn interpret_expression(expression: Spanned<Expression>, source: &str) -> Result
                     };
                     Spanned {
                         inner: Primary::Bool(lhs > rhs),
-                        span: expression.span.into(),
+                        span: expression.span,
                     }
                 }
                 BinaryOperator::LessThan => {
@@ -108,7 +114,7 @@ fn interpret_expression(expression: Spanned<Expression>, source: &str) -> Result
                     };
                     Spanned {
                         inner: Primary::Bool(lhs < rhs),
-                        span: expression.span.into(),
+                        span: expression.span,
                     }
                 }
                 BinaryOperator::GreaterThanOrEqual => {
@@ -117,7 +123,7 @@ fn interpret_expression(expression: Spanned<Expression>, source: &str) -> Result
                     };
                     Spanned {
                         inner: Primary::Bool(lhs >= rhs),
-                        span: expression.span.into(),
+                        span: expression.span,
                     }
                 }
                 BinaryOperator::LessThanOrEqual => {
@@ -126,18 +132,18 @@ fn interpret_expression(expression: Spanned<Expression>, source: &str) -> Result
                     };
                     Spanned {
                         inner: Primary::Bool(lhs <= rhs),
-                        span: expression.span.into(),
+                        span: expression.span,
                     }
                 }
 
                 BinaryOperator::Add => match (lhs.inner, rhs.inner) {
                     (Primary::Int(lhs), Primary::Int(rhs)) => Spanned {
                         inner: Primary::Int(lhs + rhs),
-                        span: expression.span.into(),
+                        span: expression.span,
                     },
                     (Primary::String(lhs), Primary::String(rhs)) => Spanned {
                         inner: Primary::String(lhs + &rhs),
-                        span: expression.span.into(),
+                        span: expression.span,
                     },
                     _ => todo!(),
                 },
@@ -147,7 +153,7 @@ fn interpret_expression(expression: Spanned<Expression>, source: &str) -> Result
                     };
                     Spanned {
                         inner: Primary::Int(lhs - rhs),
-                        span: expression.span.into(),
+                        span: expression.span,
                     }
                 }
 
@@ -157,7 +163,7 @@ fn interpret_expression(expression: Spanned<Expression>, source: &str) -> Result
                     };
                     Spanned {
                         inner: Primary::Int(lhs * rhs),
-                        span: expression.span.into(),
+                        span: expression.span,
                     }
                 }
                 BinaryOperator::Div => {
@@ -166,7 +172,7 @@ fn interpret_expression(expression: Spanned<Expression>, source: &str) -> Result
                     };
                     Spanned {
                         inner: Primary::Int(lhs / rhs),
-                        span: expression.span.into(),
+                        span: expression.span,
                     }
                 }
                 BinaryOperator::Remainder => {
@@ -175,14 +181,14 @@ fn interpret_expression(expression: Spanned<Expression>, source: &str) -> Result
                     };
                     Spanned {
                         inner: Primary::Int(lhs % rhs),
-                        span: expression.span.into(),
+                        span: expression.span,
                     }
                 }
             })
         }
         Expression::FunctionApplication { function, argument } => {
-            let function = interpret_expression(*function, source)?;
-            let argument = interpret_expression(*argument, source)?;
+            let _function = interpret_expression(*function, source)?;
+            let _argument = interpret_expression(*argument, source)?;
 
             todo!()
         }
@@ -193,20 +199,20 @@ fn interpret_expression(expression: Spanned<Expression>, source: &str) -> Result
                 UnaryOperator::Negative => match rhs.inner {
                     Primary::Int(rhs) => Spanned {
                         inner: Primary::Int(-rhs),
-                        span: expression.span.into(),
+                        span: expression.span,
                     },
                     _ => todo!(),
                 },
                 UnaryOperator::Not => match rhs.inner {
                     Primary::Bool(rhs) => Spanned {
                         inner: Primary::Bool(!rhs),
-                        span: expression.span.into(),
+                        span: expression.span,
                     },
                     _ => todo!(),
                 },
             })
         }
-        Expression::Variable(identifier) => todo!(),
+        Expression::Variable(_identifier) => todo!(),
         Expression::Primary(primary) => Ok(primary),
     }
 }

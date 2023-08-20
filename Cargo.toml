@@ -11,7 +11,6 @@ gccjit = "1.0.0"
 lazy_static = "1.4.0"
 miette = { version = "5.9.0", features = ["fancy"] }
 palette = "0.7.2"
-pest = "2.7.0"
 pest_derive = "2.7.0"
 thiserror = "1.0.40"
 

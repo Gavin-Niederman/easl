@@ -4,7 +4,7 @@ use std::{
     ops::Range,
 };
 
-use rusttyc::{Variant, Arity};
+use super::tc::Type;
 
 pub struct Spanned<T> {
     pub span: Range<usize>,
@@ -14,6 +14,12 @@ pub struct Spanned<T> {
 impl<T> Spanned<T> {
     pub fn new(span: Range<usize>, inner: T) -> Self {
         Self { span, inner }
+    }
+
+    pub fn add_spans(lhs: Self, rhs: Self) -> Range<usize> {
+        let lhs = lhs.span;
+        let rhs = rhs.span;
+        lhs.start.min(rhs.start)..lhs.end.max(rhs.end)
     }
 }
 
@@ -31,15 +37,22 @@ where
 
 impl<T> std::fmt::Debug for Spanned<T>
 where
-    T: std::fmt::Debug
+    T: std::fmt::Debug,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "Spanned {{\n\tinner: {:#?}\n\tspan: {:?}\n}}", self.inner, self.span)?;
+        writeln!(
+            f,
+            "Spanned {{\n\tinner: {:#?}\n\tspan: {:?}\n}}",
+            self.inner, self.span
+        )?;
         Ok(())
     }
 }
 
-impl<T> PartialEq for Spanned<T> where T: PartialEq {
+impl<T> PartialEq for Spanned<T>
+where
+    T: PartialEq,
+{
     fn eq(&self, other: &Self) -> bool {
         self.inner == other.inner
     }
@@ -58,10 +71,6 @@ pub enum Statement {
         ident: Identifier,
         type_: Type,
     },
-    Include {
-        source: String,
-    },
-    EOI,
 }
 
 //TODO: Add more
@@ -112,22 +121,6 @@ pub enum UnaryOperator {
     Negative,
 }
 
-impl Primary {
-    pub fn is_same_type(primary_1: &Primary, primary_2: &Primary) -> bool {
-        match (
-            primary_1,
-            primary_2,
-        ) {
-            (Primary::Bool(_), Primary::Bool(_)) => true,
-            (Primary::Color(_), Primary::Color(_)) => true,
-            (Primary::Int(_), Primary::Int(_)) => true,
-            (Primary::String(_), Primary::String(_)) => true,
-            (Primary::Lambda { .. }, Primary::Lambda { .. }) => false,
-            (Primary::Unit, Primary::Unit) => true,
-            _ => false,
-        }
-    }
-}
 
 #[derive(Debug, Clone)]
 pub enum Primary {
@@ -139,25 +132,31 @@ pub enum Primary {
     Int(f64),
     Bool(bool),
     Color(palette::Xyza<palette::white_point::D65, f64>),
+    Grouping(Box<Spanned<Expression>>),
     Unit,
+}
+impl Primary {
+    pub fn is_same_type(primary_1: &Primary, primary_2: &Primary) -> bool {
+        match (primary_1, primary_2) {
+            (Primary::Bool(_), Primary::Bool(_)) => true,
+            (Primary::Color(_), Primary::Color(_)) => true,
+            (Primary::Int(_), Primary::Int(_)) => true,
+            (Primary::String(_), Primary::String(_)) => true,
+            (Primary::Lambda { .. }, Primary::Lambda { .. }) => false,
+            (Primary::Unit, Primary::Unit) => true,
+            _ => false,
+        }
+    }
 }
 impl PartialEq for Primary {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Primary::Bool(l), Primary::Bool(r)) => {
-                l == r
-            },
-            (Primary::Color(l), Primary::Color(r)) => {
-                l == r
-            },
-            (Primary::Int(l), Primary::Int(r)) => {
-                l == r
-            },
-            (Primary::String(l), Primary::String(r)) => {
-                l == r 
-            },
+            (Primary::Bool(l), Primary::Bool(r)) => l == r,
+            (Primary::Color(l), Primary::Color(r)) => l == r,
+            (Primary::Int(l), Primary::Int(r)) => l == r,
+            (Primary::String(l), Primary::String(r)) => l == r,
             (Primary::Unit, Primary::Unit) => true,
-            _ => false
+            _ => false,
         }
     }
 }
@@ -210,14 +209,13 @@ impl IdentifierMap {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Type {
-    Infer,
-    String,
-    Int,
-    Color,
-    Bool,
-    Unit,
-    Array(Box<Type>),
-    Fun { input: Box<Type>, output: Box<Type> },
+pub trait UnwrapSameTypes<T> {
+    fn always_ok(self) -> T;
+}
+impl<T> UnwrapSameTypes<T> for Result<T, T> {
+    fn always_ok(self) -> T {
+        match self {
+            Ok(inner) | Err(inner) => inner
+        }
+    }
 }

@@ -243,7 +243,6 @@ dependencies = [
  "lazy_static",
  "miette",
  "palette",
- "pest",
  "pest_derive",
  "rusttyc",
  "thiserror",

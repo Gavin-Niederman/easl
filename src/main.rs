@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
+use easl::parser::ParserError;
 use miette::{ErrReport, Result};
 #[derive(Parser, Clone)]
 #[command(author, version, about, long_about = None)]
@@ -23,25 +24,19 @@ fn main() -> Result<()> {
                 return Err(miette::miette!("Could not read source file"));
             };
 
-            let (mut statements, mut ident_map) = easl::parser::parse(&source)
-                .map_err(<easl::parser::ParserError as Into<ErrReport>>::into)?;
+            let (mut statements, mut ident_map) =
+                match easl::parser::parse(&source).map_err(|errs| -> Vec<ErrReport> {
+                    errs.into_iter().map(|err| err.into()).collect()
+                }) {
+                    Ok((statements, mut ident_map)) => (statements, ident_map),
+                    Err(errs) => {
+                        for error in errs {
+                            println!("{error}");
+                        }
+                        return Ok(());
+                    }
+                };
             println!("{:#?}", statements);
-
-
-            // Complicated include logic. I would love to simplify this.
-            let includes = statements.clone().into_iter().filter_map(|statement| match statement {
-                easl::parser::ast::Statement::Include { source } => Some(source),
-                _ => None,
-            }).map(|source| {
-                easl::parser::parse(&source)
-                    .map_err(<easl::parser::ParserError as Into<ErrReport>>::into)
-            });
-
-            for include in includes {
-                let (mut include_statements, include_ident_map) = include?;
-                statements.append(&mut include_statements);
-                ident_map.map.extend(include_ident_map.map);
-            }
 
             easl::interpreter::interpret(statements, &source, ident_map)
                 .map_err(<easl::interpreter::InterpreterError as Into<ErrReport>>::into)?;
