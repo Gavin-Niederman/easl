@@ -1,17 +1,20 @@
-use std::ops::Range;
+use std::{ops::Range, sync::Mutex, rc::Rc};
 use ::chumsky::prelude::*;
 use miette::{Diagnostic, SourceSpan};
 use thiserror::Error;
 
-use self::ast::{IdentifierMap, Statement, Spanned};
+use crate::SOURCE;
+
+use self::{ast::{IdentifierMap, Statement, Spanned}, chumsky::strip_comments};
 
 pub mod ast;
 pub mod tc;
 pub mod chumsky;
 
-pub fn parse(source: &str) -> Result<(Vec<Spanned<Statement>>, IdentifierMap), Vec<ParserError>> {
-    let mut ident_map = IdentifierMap::new();
-    Ok((chumsky::parser(&mut ident_map).parse(source)?, ident_map))
+pub fn parse(source: &str) -> Result<(Vec<Spanned<Statement>>, Rc<Mutex<IdentifierMap>>), Vec<ParserError>> {
+    let ident_map = Rc::new(Mutex::new(IdentifierMap::new()));
+    let source = strip_comments().parse(source).unwrap();
+    Ok((chumsky::parser(ident_map.clone()).parse(source)?, ident_map))
 }
 
 #[derive(Debug, Error, Diagnostic)]
@@ -19,6 +22,9 @@ pub enum ParserError {
     #[error("Expected one of: {expected} found {found}")]
     #[diagnostic(code(easl::parser::expected_input_found))]
     ExpectedInputFound {
+        #[source_code]
+        source_code: String,
+
         #[label]
         span: SourceSpan,
 
@@ -28,6 +34,9 @@ pub enum ParserError {
     #[error("Expected one of: {expected}")]
     #[diagnostic(code(easl::parser::expected_input))]
     ExpectedInput {
+        #[source_code]
+        source_code: String,
+
         #[label]
         span: SourceSpan,
 
@@ -65,16 +74,18 @@ impl ::chumsky::Error<char> for ParserError {
         expected: Iter,
         found: Option<char>,
     ) -> Self {
-        let expected = expected.into_iter().filter_map(|ch| ch).map(|ch| ", '{ch}'").collect::<String>();
+        let expected = expected.into_iter().filter_map(|ch| ch).map(|ch| format!(", '{ch}'")).collect::<String>();
         match found {
             Some(found) =>
                 Self::ExpectedInputFound { 
+                    source_code: SOURCE.clone().unwrap(),
                     span: span.into(),
                     expected,
                     found
                 },
             None => 
                 Self::ExpectedInput {
+                    source_code: SOURCE.clone().unwrap(),
                     span: span.into(),
                     expected
                 }

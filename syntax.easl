@@ -1,8 +1,9 @@
--- this is a comment
+
 string_fn :: String -> Int
-string_fn = \str -> 1.0
+string_fn = \str -> 10.10
 
 frag :: Int -> Color
-frag = \pos -> ((rgb pos) 1.0) 1.0
+
+frag = \pos -> ((rgb pos) 10) 10
 -- frag 10 = #FFF
--- frag 0 = if (True) then (rgb ~0 0 0) else hsv ((1.0 * 10) + 10) 1.0 1.0
+-- frag 0 = if (True) then (rgb ~0 0 0) else hsv ((10 * 10) + 10) 10 10

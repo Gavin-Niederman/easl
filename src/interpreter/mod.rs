@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Mutex, rc::Rc};
 
 use miette::{Diagnostic, SourceSpan};
 use thiserror::Error;
@@ -12,7 +12,7 @@ use crate::parser::{
 };
 
 pub struct InterpreterState {
-    pub ident_map: IdentifierMap,
+    pub ident_map: Rc<Mutex<IdentifierMap>>,
 
     pub value_map: HashMap<Identifier, Primary>,
     pub type_map: HashMap<Identifier, Type>,
@@ -21,7 +21,7 @@ pub struct InterpreterState {
 pub fn interpret(
     statements: Vec<Spanned<Statement>>,
     source: &str,
-    ident_map: IdentifierMap,
+    ident_map: Rc<Mutex<IdentifierMap>>,
 ) -> Result<(), InterpreterError> {
     let mut state = InterpreterState {
         ident_map,
