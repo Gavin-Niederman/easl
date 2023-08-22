@@ -14,12 +14,13 @@ use chumsky::{
 };
 
 pub fn strip_comments() -> impl Parser<char, String, Error = Simple<char>> {
-    //TODO: This doesn't actually work?
-    let comment = just("--").ignored()
-        .then_ignore(filter(|ch: &char| *ch != '\n').or(end().not()))
-        .then_ignore(just("\n").ignored().or(end())).to('\n');
+    let comment = just("--")
+        .padded_by(just(" ").repeated())
+        .ignore_then(filter(|ch| *ch != '\n').repeated())
+        .ignore_then(just("\n").ignored().or(end()))
+        .ignored();
 
-    (comment.or(any())).repeated().collect()
+    comment.to('\n').or(any()).repeated().collect()
 }
 
 pub fn parser(
@@ -304,9 +305,7 @@ pub fn parser(
         .then_ignore(just("\n"))
         .padded();
 
-    let file = statement
-        .repeated()
-        .then_ignore(end());
+    let file = statement.repeated().then_ignore(end());
 
     file
 }
