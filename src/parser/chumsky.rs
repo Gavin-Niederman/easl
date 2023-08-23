@@ -1,4 +1,4 @@
-use std::{convert::Infallible, rc::Rc, sync::Mutex};
+use std::{rc::Rc, sync::Mutex};
 
 use super::{
     ast::{
@@ -283,7 +283,15 @@ pub fn parser(
         .then(type_annotation.clone().or_not())
         .map_with_span(|((ident, expr), type_), span| Spanned {
             inner: Statement::Assignment {
-                ident: ident.always_ok(),
+                ident: ident.clone().always_ok(),
+                type_ascription: if let Some(type_) = type_ {
+                    Some(Box::new(Statement::TypeAscription {
+                        ident: ident.always_ok(),
+                        type_,
+                    }))
+                } else {
+                    None
+                },
                 expr: *expr,
             },
             span,

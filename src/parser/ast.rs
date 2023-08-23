@@ -60,12 +60,12 @@ where
 
 #[derive(Debug, Clone)]
 pub enum Statement {
-    //TODO: Syntax for patern matching, in place type ascription, and parameters
+    //TODO: Syntax for patern matching and parameters
     Assignment {
         ident: Identifier,
         // args: Vec<Node>,
         expr: Spanned<Expression>,
-        // type_: Option<Type>,
+        type_ascription: Option<Box<Statement>>
     },
     TypeAscription {
         ident: Identifier,
