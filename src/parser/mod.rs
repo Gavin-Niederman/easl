@@ -8,7 +8,6 @@ use crate::SOURCE;
 use self::{ast::{IdentifierMap, Statement, Spanned}, chumsky::strip_comments};
 
 pub mod ast;
-pub mod tc;
 pub mod chumsky;
 
 pub fn parse(source: &str) -> Result<(Vec<Spanned<Statement>>, Rc<Mutex<IdentifierMap>>), Vec<ParserError>> {

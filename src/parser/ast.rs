@@ -4,7 +4,7 @@ use std::{
     ops::Range,
 };
 
-use super::tc::Type;
+use crate::tc::variant::Type;
 
 pub struct Spanned<T> {
     pub span: Range<usize>,

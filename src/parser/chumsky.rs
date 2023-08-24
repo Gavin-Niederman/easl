@@ -1,11 +1,12 @@
 use std::{rc::Rc, sync::Mutex};
 
+use crate::tc::variant::Type;
+
 use super::{
     ast::{
         BinaryOperator, Expression, IdentifierMap, Primary, Spanned, Statement, UnaryOperator,
         UnwrapSameTypes,
     },
-    tc::Type,
     ParserError,
 };
 use chumsky::{
