@@ -12,7 +12,7 @@ use crate::parser::ast::Statement;
 pub fn check(statements: Vec<Statement>) -> Result<TypeTable<Type>, TypeCheckerError> {
     let tc: TypeChecker<Type, TypeVariable> = TypeChecker::new();
 
-    Ok(tc.type_check().map_err(|err| err.into())?)
+    Ok(tc.type_check().map_err(|err| <TcErr<Type> as Into<TypeCheckerError>>::into(err))?)
 }
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
