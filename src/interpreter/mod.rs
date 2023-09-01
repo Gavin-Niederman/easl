@@ -3,13 +3,10 @@ use std::{collections::HashMap, sync::Mutex, rc::Rc};
 use miette::{Diagnostic, SourceSpan};
 use thiserror::Error;
 
-use crate::parser::{
-    ast::{
-        BinaryOperator, Expression, Identifier, IdentifierMap, Primary, Spanned, Statement,
+use crate::{parser::ast::{
+        BinaryOperator, Expression, Identifier, IdentifierMap, Primary, Statement,
         UnaryOperator,
-    },
-    tc::Type,
-};
+    }, tc::variant::Type, utils::Spanned};
 
 pub struct InterpreterState {
     pub ident_map: Rc<Mutex<IdentifierMap>>,
@@ -45,7 +42,7 @@ fn interpret_statement(
     state: &mut InterpreterState,
 ) -> Result<(), InterpreterError> {
     match statement.inner {
-        Statement::Assignment { ident, expr } => {
+        Statement::Assignment { ident, expr, .. } => {
             let expr = interpret_expression(expr, source)?;
             state.value_map.insert(ident, expr.inner);
         }

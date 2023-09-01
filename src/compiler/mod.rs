@@ -1,3 +1,5 @@
+pub mod context;
+
 use gccjit::Context;
 
 use crate::parser::ast::Expression;

@@ -1,5 +1,4 @@
-use miette::Diagnostic;
-use rusttyc::{Arity, Constructable, Partial, TcVar, Variant};
+use rusttyc::{Arity, Constructable, Partial, Variant};
 
 use super::TypeCheckerError;
 
@@ -40,16 +39,19 @@ impl Variant for Type {
             (Self::Unit, Self::Unit) => Ok(Self::Unit),
             (Self::Array(lhs), Self::Array(rhs)) => {
                 least_arity = 1;
-                Ok(Self::Array(Box::new(Self::meet(
-                    Partial {
-                        variant: *lhs,
-                        least_arity: 0,
-                    },
-                    Partial {
-                        variant: *lhs,
-                        least_arity: 0,
-                    },
-                )?.variant)))
+                Ok(Self::Array(Box::new(
+                    Self::meet(
+                        Partial {
+                            variant: *lhs,
+                            least_arity: 0,
+                        },
+                        Partial {
+                            variant: *rhs,
+                            least_arity: 0,
+                        },
+                    )?
+                    .variant,
+                )))
             }
             (Self::Fun { .. }, Self::Fun { .. }) => Err(TypeCheckerError::MetFunctions),
             (lhs, rhs) => Err(TypeCheckerError::IncompatibleTypes { lhs, rhs }),
@@ -62,15 +64,27 @@ impl Variant for Type {
     }
 }
 
-impl Constructable for Type {
-    type Type = Type;
-    fn construct(
-        &self,
-        children: &[Self::Type],
-    ) -> Result<Self::Type, <Self as rusttyc::ContextSensitiveVariant>::Err> {
-        match self {
-            Self::Array(_) => Ok(Self::Array(Box::new(children[0]))),
-            type_ => Ok(*type_),
-        }
-    }
-}
+// impl Constructable for Type {
+//     type Type = gccjit::Type<'static>;
+//     fn construct(
+//         &self,
+//         children: &[Self::Type],
+//     ) -> Result<Self::Type, <Self as rusttyc::ContextSensitiveVariant>::Err> {
+//         let ctx = gccjit::Context::default();
+//         Ok(match self {
+//             Type::Array(_) => todo!(),
+//             Type::String => todo!(),
+//             Type::Int => ctx.new_type::<f64>(),
+//             Type::Color => todo!(),
+//             Type::Bool => ctx.new_type::<bool>(),
+//             Type::Unit => ctx.new_type::<()>(),
+//             Type::Fun { input, output } => ctx.new_function_pointer_type(
+//                 None,
+//                 output.construct(&[])?,
+//                 &[input.construct(&[])?],
+//                 false,
+//             ),
+//             Type::Infer => Err(TypeCheckerError::UnknownType {})?,
+//         })
+//     }
+// }

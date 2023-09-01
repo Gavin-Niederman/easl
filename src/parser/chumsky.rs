@@ -1,10 +1,10 @@
 use std::{rc::Rc, sync::Mutex};
 
-use crate::tc::variant::Type;
+use crate::{tc::variant::Type, utils::Spanned};
 
 use super::{
     ast::{
-        BinaryOperator, Expression, IdentifierMap, Primary, Spanned, Statement, UnaryOperator,
+        BinaryOperator, Expression, IdentifierMap, Primary, Statement, UnaryOperator,
         UnwrapSameTypes,
     },
     ParserError,

@@ -3,9 +3,9 @@ use ::chumsky::prelude::*;
 use miette::{Diagnostic, SourceSpan};
 use thiserror::Error;
 
-use crate::SOURCE;
+use crate::{SOURCE, utils::Spanned};
 
-use self::{ast::{IdentifierMap, Statement, Spanned}, chumsky::strip_comments};
+use self::{ast::{IdentifierMap, Statement}, chumsky::strip_comments};
 
 pub mod ast;
 pub mod chumsky;
