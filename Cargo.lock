@@ -200,21 +200,12 @@ version = "0.1.0"
 dependencies = [
  "chumsky",
  "clap",
- "easl_derive",
  "gccjit",
  "lazy_static",
  "miette",
  "palette",
  "rusttyc",
  "thiserror",
-]
-
-[[package]]
-name = "easl_derive"
-version = "0.1.0"
-dependencies = [
- "quote",
- "syn",
 ]
 
 [[package]]

@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
 use miette::{ErrReport, Result};
+
 #[derive(Parser, Clone)]
 #[command(author, version, about, long_about = None)]
 pub struct Args {
@@ -23,7 +24,7 @@ fn main() -> Result<()> {
                 return Err(miette::miette!("Could not read source file"));
             };
             
-            
+
         }
     }
 
